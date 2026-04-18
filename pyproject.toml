@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openDAGent"
 version = "0.1.0"
-description = "SQLite-driven, Git-backed agentic execution framework"
+description = "DAG artifact/task oriented for agentic AI workflows."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-opendagent = "agentic_runtime.cli:main"
+openDAGent = "agentic_runtime.cli:main"
 
 [project.optional-dependencies]
 dev = []
@@ -28,7 +28,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentic_runtime = ["templates/*.html", "static/*"]
+agentic_runtime = ["templates/*.html", "static/*", "defaults/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

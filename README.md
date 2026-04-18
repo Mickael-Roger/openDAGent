@@ -4,7 +4,7 @@
 
 # openDAGent
 
-openDAGent is a local-first agentic execution framework for long-running AI-assisted work.
+openDAGent is a local-first agentic execution system for long-running AI-assisted work.
 
 It is designed to turn user requests into explicit goals, break those goals into constrained tasks, execute them inside isolated Git workspaces, and track runtime orchestration in SQLite.
 
@@ -143,86 +143,134 @@ Important files:
 - Python 3.11+
 - Git
 
-### 1. Clone the repository
+### 1. Install the package
 
 ```bash
-git clone <your-repo-url>
-cd opendagent
+pip install openDAGent
 ```
 
-### 2. Create a virtual environment
+### 2. Create a configuration file
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install the package
-
-```bash
-python3 -m pip install -e .
-```
-
-### 4. Initialize the runtime database
-
-This creates `runtime/runtime.db` and applies the SQLite schema and PRAGMA configuration.
-
-```bash
-python3 -c "from agentic_runtime import initialize_database; initialize_database('runtime/runtime.db').close()"
-```
-
-### 5. Verify the installation
-
-```bash
-python3 -c "from agentic_runtime import initialize_database, resolve_latest_artifact; print('openDAGent installed')"
-python3 -m unittest discover -s tests -v
-```
-
-### 6. Configure the runtime
-
-Configuration lives under `runtime/config/`:
-- `app.yaml`
-- `model_routing.yaml`
-- `models.yaml`
-- `capabilities/*.yaml`
-
-Adjust these files to match your local paths, model providers, and capability settings before running a fuller deployment.
-
-### What runs today
-
-The current repository provides a runnable bootstrap runtime layer:
-- package installation
-- SQLite runtime initialization
-- artifact registration and resolution
-- artifact-based task readiness checks
-- scheduler-ready queueing primitives
-
-You can initialize and exercise the current runtime API from Python immediately.
+The intended operator flow is based on one YAML file that contains runtime settings, web server settings, input channels, and LLM provider/model configuration.
 
 Example:
 
 ```bash
-python3 - <<'PY'
-from agentic_runtime import initialize_database, queue_ready_tasks
-
-connection = initialize_database('runtime/runtime.db')
-print('database initialized')
-print('ready tasks:', queue_ready_tasks(connection))
-connection.close()
-PY
+mkdir -p /etc/opendagent
+openDAGent --init-config /etc/opendagent/config.yaml
 ```
 
-### Current limitation
+The configuration file now includes sections such as:
+- `runtime`
+- `server`
+- `inputs`
+- `llm`
+- `git`
+- `planner`
+- `scheduler`
+- `approvals`
 
-The project is still in the bootstrap phase. A full end-user service runner is not implemented yet.
+In practice, this file is where you will configure:
+- Discord or email ingress
+- local API bindings
+- LLM providers and models
+- runtime storage directories
+- bind address and port for the web UI
 
-That means the following are not available yet:
-- a production CLI for creating projects and goals
-- a long-running scheduler process
-- a worker daemon that executes real capabilities end to end
-- planner-driven task ingestion from user requests
+### 3. Edit the configuration
 
-Today, the installable and runnable part of the project is the core runtime foundation that those services will build on.
+Important values to edit first:
+- `runtime.workdir`
+- `runtime.db_path`
+- `server.enabled`
+- `server.host`
+- `server.port`
+- `inputs.*`
+- `llm.*`
+
+### 4. Start openDAGent
+
+```bash
+openDAGent --config /etc/opendagent/config.yaml
+```
+
+By default, the command will:
+- load the YAML configuration file
+- create the runtime working directory if needed
+- initialize the SQLite database if it does not exist
+- start the web interface if `server.enabled` is true
+
+### 5. Useful startup options
+
+`openDAGent` supports operator-friendly overrides at startup:
+
+```bash
+openDAGent --config /etc/opendagent/config.yaml --host 0.0.0.0 --port 8080
+openDAGent --config /etc/opendagent/config.yaml --no-web
+openDAGent --config /etc/opendagent/config.yaml --workdir /var/lib/opendagent
+openDAGent --config /etc/opendagent/config.yaml --db /var/lib/opendagent/runtime/runtime.db
+openDAGent --config /etc/opendagent/config.yaml --init-db-only
+```
+
+Available runtime flags:
+- `--init-config`: write the bundled default config template to a path and exit
+- `--config`: path to the YAML configuration file
+- `--host`: override the web bind host
+- `--port`: override the web bind port
+- `--web`: force-enable the web interface
+- `--no-web`: disable the web interface
+- `--workdir`: override the runtime working directory
+- `--db`: override the SQLite database path
+- `--init-db-only`: initialize the database and exit
+
+### 6. Open the web interface
+
+```bash
+http://127.0.0.1:8080/
+```
+
+The web interface is intended to show:
+- all projects
+- task DAGs
+- runtime states
+- task details
+- artifact relationships
+
+## Packaging And Publishing
+
+This repository now includes a GitHub Actions workflow for PyPI publishing:
+- `.github/workflows/publish-pypi.yml`
+
+It is designed to publish on version tags such as:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow also performs a smoke test by installing the package, generating a default config, and running `openDAGent --init-db-only` before publishing.
+
+### Current Status
+
+The project is moving toward the user experience above.
+
+Already aligned with that direction:
+- package metadata for `openDAGent`
+- top-level `openDAGent` CLI entrypoint
+- one primary YAML configuration file
+- startup flags for config, bind host, port, workdir, database path, and web on/off
+- bundled web UI for projects, task DAGs, statuses, and task details
+- GitHub Actions workflow for PyPI publishing
+
+Not finished yet:
+- full production ingress services for Discord and email
+- full scheduler/worker runtime loops
+- end-to-end goal creation from external inputs
+- complete install docs for systemd/reverse proxy deployment
+
+## Current Limitation
+
+Today, `openDAGent` already has the shape of installable software, but the orchestration engine is still only partially implemented under the hood. The install/start UX is being aligned first so the product can grow into a real deployable server application instead of remaining a developer-only runtime library.
 
 ## Design Principles
 

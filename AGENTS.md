@@ -16,6 +16,7 @@
 ## Current Build Focus
 - Phase 1: schema bootstrap, DB helpers, config loading, IDs, time helpers, shared models, and artifact-driven task readiness.
 - Phase 2 next: Git repository/worktree helpers and path validation.
+- Product direction: converge on installable Linux server software with a single YAML config file, a top-level `openDAGent` command, and a bundled web UI.
 
 ## Testing
 - Add unit tests for every new core utility module.

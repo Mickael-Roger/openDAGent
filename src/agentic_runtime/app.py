@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
+from importlib import import_module
 from pathlib import Path
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from typing import Any
 
 from .dashboard import get_dashboard_data, get_project_detail_data, get_project_graph_data, get_task_detail_data
 from .db import connect, initialize_database
@@ -15,7 +12,20 @@ from .db import connect, initialize_database
 PACKAGE_ROOT = Path(__file__).resolve().parent
 
 
-def create_app(db_path: str = "runtime/runtime.db") -> FastAPI:
+def create_app(db_path: str = "runtime/runtime.db") -> Any:
+    fastapi_module = import_module("fastapi")
+    responses_module = import_module("fastapi.responses")
+    staticfiles_module = import_module("fastapi.staticfiles")
+    templating_module = import_module("fastapi.templating")
+
+    FastAPI = fastapi_module.FastAPI
+    HTTPException = fastapi_module.HTTPException
+    Request = fastapi_module.Request
+    HTMLResponse = responses_module.HTMLResponse
+    JSONResponse = responses_module.JSONResponse
+    StaticFiles = staticfiles_module.StaticFiles
+    Jinja2Templates = templating_module.Jinja2Templates
+
     initialize_database(db_path).close()
 
     app = FastAPI(title="openDAGent", version="0.1.0")
@@ -36,7 +46,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/", response_class=HTMLResponse)
-    async def dashboard(request: Request) -> HTMLResponse:
+    async def dashboard(request: Any) -> Any:
         connection = open_connection()
         try:
             context = get_dashboard_data(connection)
@@ -49,7 +59,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> FastAPI:
         )
 
     @app.get("/projects/{project_id}", response_class=HTMLResponse)
-    async def project_detail(request: Request, project_id: str) -> HTMLResponse:
+    async def project_detail(request: Any, project_id: str) -> Any:
         connection = open_connection()
         try:
             context = get_project_detail_data(connection, project_id)
@@ -64,7 +74,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> FastAPI:
         )
 
     @app.get("/tasks/{task_id}", response_class=HTMLResponse)
-    async def task_detail(request: Request, task_id: str) -> HTMLResponse:
+    async def task_detail(request: Any, task_id: str) -> Any:
         connection = open_connection()
         try:
             context = get_task_detail_data(connection, task_id)
@@ -79,7 +89,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> FastAPI:
         )
 
     @app.get("/api/projects/{project_id}/graph")
-    async def project_graph(project_id: str) -> JSONResponse:
+    async def project_graph(project_id: str) -> Any:
         connection = open_connection()
         try:
             graph = get_project_graph_data(connection, project_id)

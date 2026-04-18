@@ -20,8 +20,15 @@ class ConfigTests(unittest.TestCase):
         config = load_app_config(Path("runtime/config/app.yaml"))
 
         self.assertEqual(config.runtime["db_path"], "runtime/runtime.db")
+        self.assertEqual(config.runtime["workdir"], ".")
+        self.assertTrue(config.server_enabled())
+        self.assertEqual(config.server_host(), "127.0.0.1")
+        self.assertEqual(config.server_port(), 8080)
         self.assertEqual(config.git["default_branch"], "main")
         self.assertEqual(config.scheduler["max_running_tasks_total"], 8)
+        self.assertFalse(config.inputs["discord"]["enabled"])
+        self.assertEqual(config.inputs["discord"]["allowed_guild_ids"], [])
+        self.assertEqual(config.llm["default_provider"], "openai")
 
     def test_load_yaml_file_handles_model_provider_lists(self) -> None:
         config = load_yaml_file(Path("runtime/config/models.yaml"))

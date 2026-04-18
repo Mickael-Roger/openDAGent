@@ -3,9 +3,14 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from importlib import import_module
 from pathlib import Path
+from typing import Any
 
-from fastapi.testclient import TestClient
+try:
+    TestClient: Any = import_module("fastapi.testclient").TestClient
+except ModuleNotFoundError:  # pragma: no cover - dependency may be absent in minimal environments
+    TestClient = None
 
 app_module = __import__("agentic_runtime.app", fromlist=["create_app"])
 db_module = __import__("agentic_runtime.db", fromlist=["initialize_database"])
@@ -14,6 +19,7 @@ create_app = app_module.create_app
 initialize_database = db_module.initialize_database
 
 
+@unittest.skipIf(TestClient is None, "fastapi is not installed")
 class WebAppTests(unittest.TestCase):
     def test_dashboard_and_project_pages_render(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
