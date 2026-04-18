@@ -226,21 +226,3 @@ The Phase 1 foundation and artifact-driven scheduling slice are complete.
 
 ---
 
-## Publishing
-
-Releases publish to PyPI via GitHub Actions on version tags:
-
-```bash
-git tag v0.1.1
-git push origin v0.1.1
-```
-
-The workflow smoke-tests the install before publishing.
-
----
-
-## See Also
-
-- [`PROJECT.md`](PROJECT.md) — full implementation specification
-- [`docs/implementation_action_plan.md`](docs/implementation_action_plan.md) — phased delivery plan
-- [`AGENTS.md`](AGENTS.md) — agent and worker contracts

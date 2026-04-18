@@ -33,6 +33,7 @@ llm:
   default_model: gpt-4.1
   providers:
     - id: openai
+      type: openai
       endpoint: https://api.openai.com/v1
       auth:
         type: api_key
@@ -43,6 +44,7 @@ llm:
         - id: gpt-4.1-mini
           role: balanced
     - id: anthropic
+      type: anthropic
       endpoint: https://api.anthropic.com
       auth:
         type: api_key
@@ -51,6 +53,7 @@ llm:
         - id: claude-sonnet
           role: balanced
     - id: local
+      type: openai
       endpoint: http://localhost:8000/v1
       auth:
         type: none

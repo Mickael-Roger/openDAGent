@@ -1,17 +1,20 @@
 providers:
   - id: openai
+    type: openai
     endpoint: https://api.openai.com/v1
     auth:
       type: api_key
       env_var: OPENAI_API_KEY
 
   - id: anthropic
+    type: anthropic
     endpoint: https://api.anthropic.com
     auth:
       type: api_key
       env_var: ANTHROPIC_API_KEY
 
   - id: local
+    type: openai
     endpoint: http://localhost:8000/v1
     auth:
       type: none
