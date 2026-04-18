@@ -2,139 +2,134 @@
   <img src="assets/logo.png" alt="openDAGent logo" width="180">
 </p>
 
-# openDAGent
+<h1 align="center">openDAGent</h1>
 
-openDAGent is a local-first agentic execution system for long-running AI-assisted work.
+<p align="center">
+  <strong>Artifact-driven orchestration for long-running AI work.</strong><br>
+  SQLite is the brain. Git is the history. Artifacts are the dependency boundary.
+</p>
 
-It is designed to turn user requests into explicit goals, break those goals into constrained tasks, execute them inside isolated Git workspaces, and track runtime orchestration in SQLite.
+<p align="center">
+  <a href="#why-not-an-org-chart">The Idea</a> ·
+  <a href="#how-it-works">How It Works</a> ·
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#current-status">Status</a>
+</p>
 
-The project treats AI as part of an execution engine, not as a roleplay system. Runtime state is explicit, inspectable, and recoverable.
+---
 
-## Project Description
+## The Problem With "AI Companies"
 
-This project aims to build a capability-driven orchestration runtime with these core properties:
-- SQLite is the runtime control plane.
-- Git is the source of truth for project work and artifact history.
-- Tasks run through bounded capabilities instead of unrestricted filesystem or API access.
-- Artifacts are first-class runtime objects.
-- Task readiness is driven by artifact availability and status, not direct task-to-task dependency edges.
-- Change requests can freeze work, trigger impact analysis, replan, and resume execution.
+Most multi-agent frameworks today build **AI org charts**: a manager agent delegates to worker agents, who report back up the chain. There are departments, roles, and reporting lines — modeled straight from how human teams operate.
 
-At a high level, the system manages:
-- projects
-- goals
-- tasks
-- capabilities
-- artifacts
-- baselines
-- change requests
-- workers
+That design made sense for humans. It exists because of **human constraints**:
+- People have limited working memory → need handoff documents and status meetings
+- People need sleep and context-switching costs → async communication protocols
+- People have specialization gaps → role definitions and escalation paths
+- People can't be trusted blindly → approval hierarchies and sign-offs
 
-## Why
+**LLMs don't share these constraints.** They also have failure modes humans don't:
+- They hallucinate under ambiguity, not under fatigue
+- They lose coherence over long horizons, not over org boundaries
+- They have no communication overhead between "agents" if state is explicit
+- Their cost is per-token, not per-hour
 
-Most agent systems become hard to trust once work lasts longer than a single prompt or a single interaction. They often hide state in prompts, blur planning and execution, and make rollback or inspection difficult.
+Copying human org structure into an agentic system imports all the bureaucratic overhead **designed to compensate for human limits** — without getting the benefits, and while ignoring the actual LLM failure modes.
 
-This project exists to solve that by making orchestration explicit.
+---
 
-Key motivations:
-- Long-running work needs durable runtime state.
-- Multi-step execution needs deterministic scheduling rules.
-- Generated outputs need versioned history and rollback.
-- User changes during execution need controlled freeze, analysis, and replan flows.
-- External side effects need capability gates and approvals.
-- Operators need factual status from runtime data, not improvised summaries.
+## A Different Model
 
-In short: SQLite is the runtime brain, Git is the work history, and artifacts are the dependency boundary.
+openDAGent doesn't model an organization. It models a **dependency graph**.
 
-## How
+Work is broken into tasks. Each task declares:
+- what artifacts it **needs** to run
+- what artifacts it **produces** when done
 
-The runtime is built around a small set of rules.
+A task becomes executable the moment its required artifacts exist with the right status. Nothing else gates it. No manager agent decides. No delegation chain. Just data readiness.
+
+```
+         ┌─────────────────┐
+         │   product.brief │  ← artifact (file or structured value)
+         └────────┬────────┘
+                  │ required by
+         ┌────────▼────────┐
+         │  Design system  │  ← task (queued automatically when artifact is ready)
+         └────────┬────────┘
+                  │ produces
+         ┌────────▼────────┐
+         │  design.spec    │  ← artifact
+         └─────────────────┘
+```
+
+This maps to how LLMs actually work: give them bounded, well-defined inputs → get reliable, auditable outputs. The DAG is the contract. Artifacts are the interface.
+
+No prompt-chain spaghetti. No agent that "decides" whether to delegate. No hidden state living inside a context window.
+
+---
+
+## How It Works
 
 ### Core Architecture
 
-- `runtime/runtime.db` stores runtime truth.
-- project repositories store generated artifacts and change history.
-- workers execute tasks in isolated worktrees.
-- capabilities define what a task is allowed to read, write, and do.
-- artifacts connect the output of one task to the readiness of another.
-
-### Artifact-Driven Orchestration
-
-The current orchestration model is artifact-first.
-
-Each task declares:
-- `required_artifacts`
-- `produced_artifacts`
-
-A task is executable only when all of its required artifacts exist with the required status.
-
-Artifacts can be:
-- file-based outputs through `file_path`
-- structured runtime values through `value_json`
-
-Examples of structured artifacts:
-- a selected domain name
-- an external resource ID
-- an approval decision
-- planner output metadata
+| Layer | Role |
+|---|---|
+| **SQLite** | Runtime control plane — all state is here, explicit and queryable |
+| **Git** | Source of truth for project work, artifact history, and rollback |
+| **Capabilities** | What a task is allowed to read, write, and call — no unrestricted access |
+| **Artifacts** | Versioned runtime objects connecting task outputs to task readiness |
+| **Workers** | Isolated execution inside Git worktrees |
 
 ### Runtime Flow
 
-The intended runtime flow is:
-1. an input arrives through CLI, API, or another ingress channel
-2. the input is normalized into a goal
-3. a planner generates task definitions
-4. tasks are stored in SQLite with required and produced artifact declarations
-5. the scheduler queues tasks whose required artifacts are available
-6. a worker claims a queued task
-7. the worker executes inside a Git worktree
-8. task outputs are registered as artifacts
-9. newly available artifacts unlock downstream tasks
-10. status snapshots are generated from runtime facts
-
-## Current Status
-
-The repository currently contains the Phase 1 foundation plus the first artifact-driven scheduling slice.
-
-Implemented today:
-- project packaging and repository bootstrap
-- runtime configuration files under `runtime/config/`
-- SQLite schema bootstrap with required PRAGMAs
-- shared runtime models
-- artifact resolver and artifact registration helpers
-- artifact-based task readiness checks
-- scheduler helper for queueing ready tasks
-- unit and integration-style tests for the current runtime slice
-
-Planned next:
-- project and goal creation services
-- Git repository and worktree helpers
-- worker claiming and execution loop
-- planner ingestion into task and artifact declaration rows
-- change management and approval flows
-
-## Repository Layout
-
-```text
-.
-├── PROJECT.md
-├── README.md
-├── AGENTS.md
-├── docs/
-│   └── implementation_action_plan.md
-├── runtime/
-│   └── config/
-├── src/
-│   └── agentic_runtime/
-└── tests/
+```
+Input (CLI / API / channel)
+        │
+        ▼
+   Goal created
+        │
+        ▼
+   Planner → Task definitions + artifact declarations → SQLite
+        │
+        ▼
+   Scheduler checks artifact availability
+        │
+        ▼
+   Ready tasks queued → Worker claims task
+        │
+        ▼
+   Execution inside isolated Git worktree
+        │
+        ▼
+   Outputs registered as artifacts → downstream tasks unlocked
 ```
 
-Important files:
-- `PROJECT.md`: full implementation specification
-- `docs/implementation_action_plan.md`: phased delivery plan
-- `src/agentic_runtime/db.py`: SQLite schema/bootstrap
-- `src/agentic_runtime/artifacts.py`: artifact resolution and registration logic
-- `src/agentic_runtime/scheduler.py`: readiness-based queueing
+### Artifact Types
+
+Artifacts can be file-based or structured runtime values:
+
+```python
+# File artifact
+{ "artifact_key": "product.brief", "file_path": "docs/brief_v1.md" }
+
+# Structured artifact
+{ "artifact_key": "domain.selected", "value_json": {"domain": "openDAGent.io"} }
+{ "artifact_key": "approval.deploy",  "value_json": {"approved": true, "by": "user"} }
+```
+
+Structured artifacts mean approvals, decisions, and planner outputs are all first-class runtime objects — not side effects buried in conversation history.
+
+### Change Requests
+
+When requirements change mid-execution, openDAGent handles it with a controlled flow:
+1. Active work freezes
+2. Impact analysis runs against the artifact graph
+3. Affected tasks are replanned
+4. Execution resumes from a clean checkpoint
+
+No re-running everything from scratch. No silent divergence.
+
+---
 
 ## Quickstart
 
@@ -143,145 +138,109 @@ Important files:
 - Python 3.11+
 - Git
 
-### 1. Install the package
+### Install
 
 ```bash
 pip install openDAGent
 ```
 
-### 2. Create a configuration file
-
-The intended operator flow is based on one YAML file that contains runtime settings, web server settings, input channels, and LLM provider/model configuration.
-
-Example:
+### Configure
 
 ```bash
 mkdir -p /etc/opendagent
 openDAGent --init-config /etc/opendagent/config.yaml
 ```
 
-The configuration file now includes sections such as:
-- `runtime`
-- `server`
-- `inputs`
-- `llm`
-- `git`
-- `planner`
-- `scheduler`
-- `approvals`
+Edit the key values:
 
-In practice, this file is where you will configure:
-- Discord or email ingress
-- local API bindings
-- LLM providers and models
-- runtime storage directories
-- bind address and port for the web UI
+```yaml
+runtime:
+  workdir: /var/lib/opendagent
+  db_path: /var/lib/opendagent/runtime/runtime.db
 
-### 3. Edit the configuration
+server:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
 
-Important values to edit first:
-- `runtime.workdir`
-- `runtime.db_path`
-- `server.enabled`
-- `server.host`
-- `server.port`
-- `inputs.*`
-- `llm.*`
+llm:
+  # your model provider configuration
+```
 
-### 4. Start openDAGent
+### Start
 
 ```bash
 openDAGent --config /etc/opendagent/config.yaml
 ```
 
-By default, the command will:
-- load the YAML configuration file
-- create the runtime working directory if needed
-- initialize the SQLite database if it does not exist
-- start the web interface if `server.enabled` is true
+### Open the Web UI
 
-### 5. Useful startup options
-
-`openDAGent` supports operator-friendly overrides at startup:
-
-```bash
-openDAGent --config /etc/opendagent/config.yaml --host 0.0.0.0 --port 8080
-openDAGent --config /etc/opendagent/config.yaml --no-web
-openDAGent --config /etc/opendagent/config.yaml --workdir /var/lib/opendagent
-openDAGent --config /etc/opendagent/config.yaml --db /var/lib/opendagent/runtime/runtime.db
-openDAGent --config /etc/opendagent/config.yaml --init-db-only
 ```
-
-Available runtime flags:
-- `--init-config`: write the bundled default config template to a path and exit
-- `--config`: path to the YAML configuration file
-- `--host`: override the web bind host
-- `--port`: override the web bind port
-- `--web`: force-enable the web interface
-- `--no-web`: disable the web interface
-- `--workdir`: override the runtime working directory
-- `--db`: override the SQLite database path
-- `--init-db-only`: initialize the database and exit
-
-### 6. Open the web interface
-
-```bash
 http://127.0.0.1:8080/
 ```
 
-The web interface is intended to show:
-- all projects
-- task DAGs
-- runtime states
-- task details
-- artifact relationships
+The dashboard shows all projects, task DAGs, runtime states, task details, and artifact relationships.
 
-## Packaging And Publishing
-
-This repository now includes a GitHub Actions workflow for PyPI publishing:
-- `.github/workflows/publish-pypi.yml`
-
-It is designed to publish on version tags such as:
+### Runtime Flags
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+openDAGent --config path/to/config.yaml           # standard start
+openDAGent --config ... --host 0.0.0.0 --port 9090  # override bind
+openDAGent --config ... --no-web                  # headless mode
+openDAGent --config ... --init-db-only            # bootstrap db and exit
+openDAGent --init-config path/to/output.yaml      # write default config template
 ```
 
-The release workflow also performs a smoke test by installing the package, generating a default config, and running `openDAGent --init-db-only` before publishing.
+---
 
-### Current Status
+## Current Status
 
-The project is moving toward the user experience above.
+The Phase 1 foundation and artifact-driven scheduling slice are complete.
 
-Already aligned with that direction:
-- package metadata for `openDAGent`
-- top-level `openDAGent` CLI entrypoint
-- one primary YAML configuration file
-- startup flags for config, bind host, port, workdir, database path, and web on/off
-- bundled web UI for projects, task DAGs, statuses, and task details
+**Done**
+- Package, CLI, and repository bootstrap
+- SQLite schema with required PRAGMAs
+- Shared runtime models
+- Artifact resolver and registration
+- Artifact-based task readiness and scheduler
+- Web UI: dashboard, project DAG view, task detail
 - GitHub Actions workflow for PyPI publishing
+- Unit and integration tests
 
-Not finished yet:
-- full production ingress services for Discord and email
-- full scheduler/worker runtime loops
-- end-to-end goal creation from external inputs
-- complete install docs for systemd/reverse proxy deployment
+**In Progress**
+- Project and goal creation services
+- Git repository and worktree helpers
+- Worker claiming and execution loop
+- Planner output ingestion into task and artifact rows
+- Change management and approval flows
 
-## Current Limitation
-
-Today, `openDAGent` already has the shape of installable software, but the orchestration engine is still only partially implemented under the hood. The install/start UX is being aligned first so the product can grow into a real deployable server application instead of remaining a developer-only runtime library.
+---
 
 ## Design Principles
 
-- Prefer explicit files over hidden memory.
-- Prefer deterministic rules over improvised agent behavior.
-- Prefer auditable side effects over silent automation.
-- Prefer artifact-driven orchestration over task-edge coupling.
-- Prefer simple local architecture first, then distribute later.
+- **Explicit over hidden** — runtime state lives in SQLite, not in a prompt.
+- **Data-driven over authority-driven** — artifact availability gates tasks, not agent delegation.
+- **Bounded execution** — capabilities define what a task can touch; nothing else is reachable.
+- **Auditable by default** — artifact versions and task history are facts, not summaries.
+- **Local-first** — runs on a single machine; distribute later if needed.
+
+---
+
+## Publishing
+
+Releases publish to PyPI via GitHub Actions on version tags:
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+The workflow smoke-tests the install before publishing.
+
+---
 
 ## See Also
 
-- `PROJECT.md`
-- `docs/implementation_action_plan.md`
-- `AGENTS.md`
+- [`PROJECT.md`](PROJECT.md) — full implementation specification
+- [`docs/implementation_action_plan.md`](docs/implementation_action_plan.md) — phased delivery plan
+- [`AGENTS.md`](AGENTS.md) — agent and worker contracts
