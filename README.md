@@ -36,6 +36,8 @@ That design made sense for humans. It exists because of **human constraints**:
 
 Copying human org structure into an agentic system imports all the bureaucratic overhead **designed to compensate for human limits** — without getting the benefits, and while ignoring the actual LLM failure modes.
 
+openDAGent is not a development tool. It is a general-purpose project orchestration engine. The same model applies to research projects, content production, data pipelines, infrastructure rollouts, business operations, or any other work where outputs depend on prior outputs.
+
 ---
 
 ## A Different Model
@@ -106,18 +108,21 @@ Input (CLI / API / channel)
 
 ### Artifact Types
 
-Artifacts can be file-based or structured runtime values:
+Artifacts can be file-based or structured runtime values, regardless of domain:
 
 ```python
-# File artifact
-{ "artifact_key": "product.brief", "file_path": "docs/brief_v1.md" }
+# File artifacts
+{ "artifact_key": "report.draft",      "file_path": "output/draft_v1.md" }
+{ "artifact_key": "dataset.cleaned",   "file_path": "data/cleaned.parquet" }
+{ "artifact_key": "infra.plan",        "file_path": "terraform/plan.json" }
 
-# Structured artifact
-{ "artifact_key": "domain.selected", "value_json": {"domain": "openDAGent.io"} }
-{ "artifact_key": "approval.deploy",  "value_json": {"approved": true, "by": "user"} }
+# Structured artifacts — decisions, approvals, computed values
+{ "artifact_key": "scope.confirmed",   "value_json": {"confirmed": true} }
+{ "artifact_key": "budget.approved",   "value_json": {"approved": true, "ceiling_usd": 5000} }
+{ "artifact_key": "supplier.selected", "value_json": {"vendor": "Acme", "score": 0.91} }
 ```
 
-Structured artifacts mean approvals, decisions, and planner outputs are all first-class runtime objects — not side effects buried in conversation history.
+Approvals, decisions, and planner outputs are first-class runtime objects — not side effects buried in conversation history. Any task that needs a human decision simply waits for the approval artifact to exist.
 
 ### Change Requests
 
@@ -195,24 +200,24 @@ openDAGent --init-config path/to/output.yaml      # write default config templat
 
 ## Current Status
 
-The Phase 1 foundation and artifact-driven scheduling slice are complete.
-
 **Done**
 - Package, CLI, and repository bootstrap
 - SQLite schema with required PRAGMAs
-- Shared runtime models
-- Artifact resolver and registration
+- Shared runtime models and artifact resolver
 - Artifact-based task readiness and scheduler
-- Web UI: dashboard, project DAG view, task detail
-- GitHub Actions workflow for PyPI publishing
-- Unit and integration tests
+- LLM client — OpenAI-compatible and Anthropic endpoints
+- Ingress loop — detects new user messages, triggers planning
+- Planner — creates tasks from goal state
+- Worker loop — claims, executes, and records tasks
+- `chat_response` capability — full message → LLM → reply pipeline
+- Web UI: project chat, dashboard, DAG view, task detail
 
-**In Progress**
-- Project and goal creation services
-- Git repository and worktree helpers
-- Worker claiming and execution loop
-- Planner output ingestion into task and artifact rows
+**Not yet implemented**
+- Git repository and worktree isolation for task execution
+- Capabilities beyond `chat_response` (file writes, web search, code execution, …)
+- Structured plan output from planner (task graph from LLM response)
 - Change management and approval flows
+- Discord / email ingress channels
 
 ---
 
