@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">New Project</p>
+        <h1>Start a Chat</h1>
+        <p class="subtitle">Describe your project and openDAGent will help you shape it.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <form id="new-project-form">
+        <div class="form-field">
+            <label for="title">Project name</label>
+            <input type="text" id="title" name="title" required placeholder="My awesome project" autocomplete="off">
+        </div>
+        <div class="form-field">
+            <label for="description">Description <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <textarea id="description" name="description" rows="3" placeholder="What would you like to build?"></textarea>
+        </div>
+        <p id="form-error" class="form-error" hidden></p>
+        <button type="submit" class="btn-primary" id="submit-btn">Start Chat</button>
+    </form>
+</section>
+
+<script>
+    document.getElementById('new-project-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn');
+        const err = document.getElementById('form-error');
+        btn.disabled = true;
+        btn.textContent = 'Creating…';
+        err.hidden = true;
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: document.getElementById('title').value.trim(),
+                    description: document.getElementById('description').value.trim(),
+                }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.detail || 'Failed to create project');
+            }
+            const { project_id } = await res.json();
+            window.location.href = `/projects/${project_id}/chat`;
+        } catch (ex) {
+            err.textContent = ex.message;
+            err.hidden = false;
+            btn.disabled = false;
+            btn.textContent = 'Start Chat';
+        }
+    });
+</script>
+{% endblock %}

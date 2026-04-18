@@ -27,11 +27,12 @@
 <section class="panel">
     <div class="panel-header">
         <h2>Projects</h2>
+        <a href="{{ url_for('chat_new') }}" class="btn-primary" style="font-size:0.85rem;padding:9px 18px">+ New Chat</a>
     </div>
     {% if projects %}
     <div class="project-grid">
         {% for project in projects %}
-        <a class="project-card" href="{{ url_for('project_detail', project_id=project.project_id) }}">
+        <a class="project-card" href="{{ url_for('project_chat', project_id=project.project_id) }}">
             <div class="project-card-top">
                 <div>
                     <h3>{{ project.title }}</h3>

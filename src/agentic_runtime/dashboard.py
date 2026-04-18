@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections import Counter, defaultdict
 from typing import Any
+
+from .ids import new_id
+from .time import utc_now_iso
 
 
 def get_dashboard_data(connection: sqlite3.Connection) -> dict[str, Any]:
@@ -331,3 +335,122 @@ def _task_neighbors(
         )
         item["artifacts"].append(row["artifact_key"])
     return list(grouped.values())
+
+
+def _slugify(text: str) -> str:
+    slug = text.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s_]+", "-", slug)
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")
+    return slug[:64] or "project"
+
+
+def create_project_with_goal(
+    connection: sqlite3.Connection,
+    title: str,
+    description: str,
+) -> tuple[str, str]:
+    project_id = new_id("proj")
+    goal_id = new_id("goal")
+    now = utc_now_iso()
+
+    base_slug = _slugify(title)
+    existing_slugs = {
+        row[0]
+        for row in connection.execute(
+            "SELECT slug FROM projects WHERE slug = ? OR slug LIKE ?",
+            (base_slug, base_slug + "-%"),
+        ).fetchall()
+    }
+    slug = base_slug
+    counter = 2
+    while slug in existing_slugs:
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    connection.execute(
+        """
+        INSERT INTO projects
+            (project_id, slug, title, description, state, local_repo_path,
+             default_branch, visibility, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'draft', '', 'main', 'private', ?, ?)
+        """,
+        (project_id, slug, title, description, now, now),
+    )
+    connection.execute(
+        """
+        INSERT INTO goals
+            (goal_id, project_id, title, description, source_channel, state,
+             priority, approval_mode, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'web', 'active', 50, 'human_for_external_actions', ?, ?)
+        """,
+        (goal_id, project_id, title, description, now, now),
+    )
+    connection.commit()
+    return project_id, goal_id
+
+
+def get_project_chat_data(
+    connection: sqlite3.Connection,
+    project_id: str,
+) -> dict[str, Any] | None:
+    project_row = connection.execute(
+        "SELECT * FROM projects WHERE project_id = ?",
+        (project_id,),
+    ).fetchone()
+    if project_row is None:
+        return None
+
+    goal_row = connection.execute(
+        "SELECT * FROM goals WHERE project_id = ? ORDER BY created_at ASC LIMIT 1",
+        (project_id,),
+    ).fetchone()
+
+    messages: list[dict[str, Any]] = []
+    if goal_row is not None:
+        messages = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT message_id, author_type, content, message_ts, created_at
+                FROM goal_messages
+                WHERE goal_id = ?
+                ORDER BY message_ts ASC, created_at ASC
+                """,
+                (goal_row["goal_id"],),
+            ).fetchall()
+        ]
+
+    return {
+        "page_title": dict(project_row)["title"],
+        "project": dict(project_row),
+        "goal": dict(goal_row) if goal_row is not None else None,
+        "messages": messages,
+    }
+
+
+def add_user_message(
+    connection: sqlite3.Connection,
+    project_id: str,
+    goal_id: str,
+    content: str,
+) -> dict[str, Any]:
+    message_id = new_id("msg")
+    now = utc_now_iso()
+    connection.execute(
+        """
+        INSERT INTO goal_messages
+            (message_id, goal_id, project_id, author_type, source_channel,
+             content, message_ts, created_at)
+        VALUES (?, ?, ?, 'user', 'web', ?, ?, ?)
+        """,
+        (message_id, goal_id, project_id, content, now, now),
+    )
+    connection.commit()
+    return {
+        "message_id": message_id,
+        "author_type": "user",
+        "content": content,
+        "message_ts": now,
+        "created_at": now,
+    }

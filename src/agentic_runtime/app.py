@@ -5,7 +5,15 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from .dashboard import get_dashboard_data, get_project_detail_data, get_project_graph_data, get_task_detail_data
+from .dashboard import (
+    add_user_message,
+    create_project_with_goal,
+    get_dashboard_data,
+    get_project_chat_data,
+    get_project_detail_data,
+    get_project_graph_data,
+    get_task_detail_data,
+)
 from .db import connect, initialize_database
 
 try:
@@ -102,5 +110,62 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
         if graph is None:
             raise HTTPException(status_code=404, detail="Project not found")
         return JSONResponse(graph)
+
+    @app.get("/chat/new", response_class=HTMLResponse)
+    async def chat_new(request: _FastAPIRequest) -> Any:
+        return templates.TemplateResponse(
+            request=request,
+            name="chat_new.html",
+            context={"page_title": "New Project"},
+        )
+
+    @app.post("/api/chat")
+    async def api_create_chat(request: _FastAPIRequest) -> Any:
+        body = await request.json()
+        title = str(body.get("title", "")).strip()
+        description = str(body.get("description", "")).strip()
+        if not title:
+            raise HTTPException(status_code=400, detail="title is required")
+        connection = open_connection()
+        try:
+            project_id, _goal_id = create_project_with_goal(connection, title, description)
+        finally:
+            connection.close()
+        return JSONResponse({"project_id": project_id})
+
+    @app.get("/projects/{project_id}/chat", response_class=HTMLResponse)
+    async def project_chat(request: _FastAPIRequest, project_id: str) -> Any:
+        connection = open_connection()
+        try:
+            context = get_project_chat_data(connection, project_id)
+        finally:
+            connection.close()
+        if context is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return templates.TemplateResponse(
+            request=request,
+            name="chat.html",
+            context=context,
+        )
+
+    @app.post("/api/projects/{project_id}/messages")
+    async def api_add_message(request: _FastAPIRequest, project_id: str) -> Any:
+        body = await request.json()
+        content = str(body.get("content", "")).strip()
+        if not content:
+            raise HTTPException(status_code=400, detail="content is required")
+        connection = open_connection()
+        try:
+            context = get_project_chat_data(connection, project_id)
+            if context is None:
+                raise HTTPException(status_code=404, detail="Project not found")
+            if context["goal"] is None:
+                raise HTTPException(status_code=400, detail="Project has no goal")
+            message = add_user_message(
+                connection, project_id, context["goal"]["goal_id"], content
+            )
+        finally:
+            connection.close()
+        return JSONResponse(message)
 
     return app
