@@ -1,0 +1,40 @@
+name: spec.product.refine
+version: "1.0"
+category: product
+risk_level: low
+requires_approval: false
+
+inputs:
+  required_artifacts:
+    - intake/normalized_intent_v1.json
+
+outputs:
+  expected_artifacts:
+    - product/product_brief_v1.md
+    - product/feature_list_v1.md
+
+allowed_paths:
+  - product/**
+  - planning/**
+
+tools:
+  - file.read
+  - file.write
+  - git.status
+  - git.add
+  - git.commit
+
+model_policy:
+  preferred_pool: strong_reasoning
+  fallback_pools:
+    - balanced
+    - cheap_fast
+
+budgets:
+  max_tokens: 24000
+  max_cost_usd: 1.50
+  max_runtime_seconds: 900
+
+task_contract:
+  input_schema: ProductRefineRequestV1
+  output_schema: ProductRefineResultV1

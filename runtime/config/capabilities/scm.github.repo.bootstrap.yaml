@@ -1,0 +1,38 @@
+name: scm.github.repo.bootstrap
+version: "1.0"
+category: scm
+risk_level: high
+requires_approval: true
+
+inputs:
+  required_artifacts:
+    - manifests/project_manifest.yaml
+
+outputs:
+  expected_artifacts:
+    - manifests/project_manifest.yaml
+
+allowed_paths:
+  - manifests/**
+
+tools:
+  - file.read
+  - file.write
+  - git.status
+  - git.add
+  - git.commit
+  - github.api
+
+model_policy:
+  preferred_pool: balanced
+  fallback_pools:
+    - strong_reasoning
+
+budgets:
+  max_tokens: 12000
+  max_cost_usd: 2.00
+  max_runtime_seconds: 600
+
+task_contract:
+  input_schema: GithubRepoBootstrapRequestV1
+  output_schema: GithubRepoBootstrapResultV1

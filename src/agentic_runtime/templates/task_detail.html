@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Task</p>
+        <h1>{{ task.title }}</h1>
+        <p class="subtitle">{{ task.project_title }} / {{ task.goal_title }}</p>
+    </div>
+    <div class="hero-actions">
+        <span class="pill pill-{{ task.state }}">{{ task.state }}</span>
+    </div>
+</section>
+
+<section class="split-layout">
+    <article class="panel detail-panel">
+        <div class="panel-header"><h2>Metadata</h2></div>
+        <dl class="detail-list">
+            <div><dt>Task ID</dt><dd>{{ task.task_id }}</dd></div>
+            <div><dt>Capability</dt><dd>{{ task.capability_name }}</dd></div>
+            <div><dt>Priority</dt><dd>{{ task.priority }}</dd></div>
+            <div><dt>Goal</dt><dd>{{ task.goal_id }}</dd></div>
+            <div><dt>Project</dt><dd>{{ task.project_id }}</dd></div>
+            <div><dt>Updated</dt><dd>{{ task.updated_at }}</dd></div>
+        </dl>
+    </article>
+
+    <article class="panel detail-panel">
+        <div class="panel-header"><h2>Required Artifacts</h2></div>
+        {% if resolved_requirements %}
+        <div class="artifact-list">
+            {% for item in resolved_requirements %}
+            <article class="artifact-row">
+                <div>
+                    <strong>{{ item.artifact_key }}</strong>
+                    <p>needs status: {{ item.required_status }}</p>
+                    {% if item.resolved_artifact %}
+                    <small>resolved v{{ item.resolved_artifact.version }}</small>
+                    {% else %}
+                    <small>not available</small>
+                    {% endif %}
+                </div>
+                <span class="pill pill-{{ item.required_status }}">{{ item.required_status }}</span>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-copy">This task has no declared required artifacts.</p>
+        {% endif %}
+    </article>
+ </section>
+
+<section class="split-layout">
+    <article class="panel detail-panel">
+        <div class="panel-header"><h2>Produced Artifacts</h2></div>
+        {% if output_artifacts %}
+        <div class="artifact-list">
+            {% for artifact in output_artifacts %}
+            <article class="artifact-row">
+                <div>
+                    <strong>{{ artifact.artifact_key }}</strong>
+                    <p>{{ artifact.type }} · v{{ artifact.version }}</p>
+                </div>
+                <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-copy">This task has not produced persisted artifacts yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="panel detail-panel">
+        <div class="panel-header"><h2>Graph Links</h2></div>
+        <div class="neighbor-groups">
+            <div>
+                <h3>Upstream</h3>
+                {% for neighbor in upstream_links %}
+                <a class="task-row compact" href="{{ url_for('task_detail', task_id=neighbor.task_id) }}">
+                    <div>
+                        <strong>{{ neighbor.title }}</strong>
+                        <p>{{ neighbor.artifacts|join(', ') }}</p>
+                    </div>
+                    <span class="pill pill-{{ neighbor.state }}">{{ neighbor.state }}</span>
+                </a>
+                {% else %}
+                <p class="empty-copy">No upstream task links.</p>
+                {% endfor %}
+            </div>
+            <div>
+                <h3>Downstream</h3>
+                {% for neighbor in downstream_links %}
+                <a class="task-row compact" href="{{ url_for('task_detail', task_id=neighbor.task_id) }}">
+                    <div>
+                        <strong>{{ neighbor.title }}</strong>
+                        <p>{{ neighbor.artifacts|join(', ') }}</p>
+                    </div>
+                    <span class="pill pill-{{ neighbor.state }}">{{ neighbor.state }}</span>
+                </a>
+                {% else %}
+                <p class="empty-copy">No downstream task links.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </article>
+</section>
+{% endblock %}

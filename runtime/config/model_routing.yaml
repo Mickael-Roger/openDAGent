@@ -1,0 +1,17 @@
+pools:
+  strong_reasoning:
+    provider: provider_a
+    max_parallel_tasks: 2
+    daily_token_budget: 1000000
+  balanced:
+    provider: provider_b
+    max_parallel_tasks: 3
+    daily_token_budget: 1500000
+  cheap_fast:
+    provider: provider_c
+    max_parallel_tasks: 6
+    daily_token_budget: 6000000
+  extraction:
+    provider: provider_d
+    max_parallel_tasks: 8
+    daily_token_budget: 8000000

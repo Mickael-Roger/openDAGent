@@ -1,0 +1,20 @@
+runtime:
+  db_path: runtime/runtime.db
+  workspace_root: .
+  poll_interval_seconds: 5
+  lease_duration_seconds: 120
+  heartbeat_interval_seconds: 30
+
+git:
+  default_branch: main
+  auto_gc: false
+
+planner:
+  max_tasks_per_plan: 15
+
+scheduler:
+  max_running_tasks_per_goal: 3
+  max_running_tasks_total: 8
+
+approvals:
+  default_required_for_high_risk: true

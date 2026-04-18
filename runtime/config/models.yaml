@@ -1,0 +1,66 @@
+providers:
+  - id: openai
+    endpoint: https://api.openai.com/v1
+    auth:
+      type: api_key
+      env_var: OPENAI_API_KEY
+
+  - id: anthropic
+    endpoint: https://api.anthropic.com
+    auth:
+      type: api_key
+      env_var: ANTHROPIC_API_KEY
+
+  - id: local
+    endpoint: http://localhost:8000/v1
+    auth:
+      type: none
+
+models:
+  - id: openai_gpt_code
+    provider: openai
+    model_name: gpt-code
+    scores:
+      coding: 9
+      reasoning: 7
+      extraction: 6
+      speed: 6
+      cost_efficiency: 4
+    capabilities:
+      support_vision: true
+      support_tools: true
+      support_json_schema: true
+      support_streaming: true
+    enabled: true
+
+  - id: anthropic_reasoning
+    provider: anthropic
+    model_name: claude-reasoning
+    scores:
+      coding: 7
+      reasoning: 9
+      extraction: 8
+      speed: 5
+      cost_efficiency: 4
+    capabilities:
+      support_vision: true
+      support_tools: false
+      support_json_schema: true
+      support_streaming: true
+    enabled: true
+
+  - id: local_fast
+    provider: local
+    model_name: qwen-fast
+    scores:
+      coding: 6
+      reasoning: 5
+      extraction: 7
+      speed: 9
+      cost_efficiency: 10
+    capabilities:
+      support_vision: false
+      support_tools: false
+      support_json_schema: false
+      support_streaming: true
+    enabled: true

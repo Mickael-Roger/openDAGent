@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Project</p>
+        <h1>{{ project.title }}</h1>
+        <p class="subtitle">{{ project.slug }} · Runtime state: <span class="pill pill-{{ project.state }}">{{ project.state }}</span></p>
+    </div>
+    <div class="hero-actions">
+        <a class="ghost-link" href="{{ url_for('dashboard') }}">Back to projects</a>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card"><span class="stat-label">Goals</span><strong>{{ goals|length }}</strong></article>
+    <article class="stat-card"><span class="stat-label">Tasks</span><strong>{{ tasks|length }}</strong></article>
+    <article class="stat-card"><span class="stat-label">Artifacts</span><strong>{{ recent_artifacts|length }}</strong></article>
+</section>
+
+<section class="panel graph-panel">
+    <div class="panel-header">
+        <h2>Task DAG</h2>
+        <p>Edges are inferred from produced and required artifact declarations.</p>
+    </div>
+    <div class="graph-wrap">
+        <svg id="task-graph" class="task-graph" aria-label="Task dependency graph"></svg>
+    </div>
+</section>
+
+<div class="split-layout">
+    <section class="panel">
+        <div class="panel-header"><h2>Tasks</h2></div>
+        <div class="task-list">
+            {% for task in tasks %}
+            <a class="task-row" href="{{ url_for('task_detail', task_id=task.task_id) }}">
+                <div>
+                    <strong>{{ task.title }}</strong>
+                    <p>{{ task.goal_title }} · {{ task.capability_name }}</p>
+                </div>
+                <span class="pill pill-{{ task.state }}">{{ task.state }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header"><h2>Recent Artifacts</h2></div>
+        <div class="artifact-list">
+            {% for artifact in recent_artifacts %}
+            <article class="artifact-row">
+                <div>
+                    <strong>{{ artifact.artifact_key }}</strong>
+                    <p>{{ artifact.type }} · v{{ artifact.version }}</p>
+                </div>
+                <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<script id="graph-data" type="application/json">{{ graph_json|safe }}</script>
+<script src="{{ url_for('static', path='/graph.js') }}"></script>
+{% endblock %}

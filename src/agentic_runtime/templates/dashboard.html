@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Overview</p>
+        <h1>All Projects</h1>
+        <p class="subtitle">Inspect project health, runtime state, and artifact production from one place.</p>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span class="stat-label">Projects</span>
+        <strong>{{ project_count }}</strong>
+    </article>
+    <article class="stat-card">
+        <span class="stat-label">Task States</span>
+        <strong>{{ task_state_counts|length }}</strong>
+    </article>
+    <article class="stat-card">
+        <span class="stat-label">Project States</span>
+        <strong>{{ project_state_counts|length }}</strong>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>Projects</h2>
+    </div>
+    {% if projects %}
+    <div class="project-grid">
+        {% for project in projects %}
+        <a class="project-card" href="{{ url_for('project_detail', project_id=project.project_id) }}">
+            <div class="project-card-top">
+                <div>
+                    <h3>{{ project.title }}</h3>
+                    <p>{{ project.slug }}</p>
+                </div>
+                <span class="pill pill-{{ project.state }}">{{ project.state }}</span>
+            </div>
+            <div class="mini-stats">
+                <span>{{ project.goal_count }} goals</span>
+                <span>{{ project.task_count }} tasks</span>
+                <span>{{ project.done_task_count }} done</span>
+                <span>{{ project.artifact_count }} artifacts</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No projects yet</h3>
+        <p>Initialize the database and start adding runtime data to see the dashboard populate.</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
