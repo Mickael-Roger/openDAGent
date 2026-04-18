@@ -8,6 +8,11 @@ from typing import Any
 from .dashboard import get_dashboard_data, get_project_detail_data, get_project_graph_data, get_task_detail_data
 from .db import connect, initialize_database
 
+try:
+    from fastapi import Request as _FastAPIRequest
+except ImportError:  # pragma: no cover - fastapi may be absent in minimal environments
+    _FastAPIRequest = None  # type: ignore[assignment,misc]
+
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 
@@ -20,7 +25,6 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
 
     FastAPI = fastapi_module.FastAPI
     HTTPException = fastapi_module.HTTPException
-    Request = fastapi_module.Request
     HTMLResponse = responses_module.HTMLResponse
     JSONResponse = responses_module.JSONResponse
     StaticFiles = staticfiles_module.StaticFiles
@@ -46,7 +50,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
         return {"status": "ok"}
 
     @app.get("/", response_class=HTMLResponse)
-    async def dashboard(request: Any) -> Any:
+    async def dashboard(request: _FastAPIRequest) -> Any:
         connection = open_connection()
         try:
             context = get_dashboard_data(connection)
@@ -59,7 +63,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
         )
 
     @app.get("/projects/{project_id}", response_class=HTMLResponse)
-    async def project_detail(request: Any, project_id: str) -> Any:
+    async def project_detail(request: _FastAPIRequest, project_id: str) -> Any:
         connection = open_connection()
         try:
             context = get_project_detail_data(connection, project_id)
@@ -74,7 +78,7 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
         )
 
     @app.get("/tasks/{task_id}", response_class=HTMLResponse)
-    async def task_detail(request: Any, task_id: str) -> Any:
+    async def task_detail(request: _FastAPIRequest, task_id: str) -> Any:
         connection = open_connection()
         try:
             context = get_task_detail_data(connection, task_id)
