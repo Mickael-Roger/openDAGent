@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="openDAGent logo" width="180">
+  <img src="assets/logo.png" alt="openDAGent logo" width="180">
 </p>
 
 # openDAGent
