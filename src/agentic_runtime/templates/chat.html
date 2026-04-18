@@ -41,6 +41,9 @@
     const messagesEl = document.getElementById('chat-messages');
     const inputEl = document.getElementById('chat-input');
 
+    // Track the latest message timestamp for polling
+    let lastMessageTs = {{ (messages[-1].message_ts if messages else '') | tojson }};
+
     // Scroll to bottom on load
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
@@ -63,19 +66,40 @@
         appendBubble('user', content);
 
         try {
-            await fetch(`/api/projects/${PROJECT_ID}/messages`, {
+            const res = await fetch(`/api/projects/${PROJECT_ID}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content }),
             });
+            if (res.ok) {
+                const msg = await res.json();
+                lastMessageTs = msg.message_ts;
+            }
         } finally {
             inputEl.disabled = false;
             inputEl.focus();
         }
     });
 
+    // Poll for agent replies every 2 seconds
+    async function pollMessages() {
+        try {
+            const qs = lastMessageTs ? `?after=${encodeURIComponent(lastMessageTs)}` : '';
+            const res = await fetch(`/api/projects/${PROJECT_ID}/messages${qs}`);
+            if (!res.ok) return;
+            const { messages } = await res.json();
+            for (const msg of messages) {
+                if (msg.author_type !== 'user') {
+                    appendBubble(msg.author_type, msg.content);
+                    lastMessageTs = msg.message_ts;
+                }
+            }
+        } catch (_) { /* network hiccup, ignore */ }
+    }
+
+    setInterval(pollMessages, 2000);
+
     function appendBubble(authorType, content) {
-        // Remove empty-state placeholder if present
         const empty = messagesEl.querySelector('.chat-empty');
         if (empty) empty.remove();
 

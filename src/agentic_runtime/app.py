@@ -5,6 +5,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+from .capabilities import register_builtins
 from .dashboard import (
     add_user_message,
     create_project_with_goal,
@@ -38,7 +39,9 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
     StaticFiles = staticfiles_module.StaticFiles
     Jinja2Templates = templating_module.Jinja2Templates
 
-    initialize_database(db_path).close()
+    conn = initialize_database(db_path)
+    register_builtins(conn)
+    conn.close()
 
     app = FastAPI(title="openDAGent", version="0.1.0")
     app.state.db_path = db_path
@@ -167,5 +170,19 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
         finally:
             connection.close()
         return JSONResponse(message)
+
+    @app.get("/api/projects/{project_id}/messages")
+    async def api_get_messages(project_id: str, after: str | None = None) -> Any:
+        connection = open_connection()
+        try:
+            context = get_project_chat_data(connection, project_id)
+            if context is None:
+                raise HTTPException(status_code=404, detail="Project not found")
+            messages = context["messages"]
+            if after:
+                messages = [m for m in messages if m["message_ts"] > after]
+        finally:
+            connection.close()
+        return JSONResponse({"messages": messages})
 
     return app

@@ -4,6 +4,7 @@ import argparse
 from importlib import import_module
 from pathlib import Path
 
+from .capabilities import register_builtins
 from .config import AppConfig, load_app_config
 from .db import initialize_database
 
@@ -70,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     connection = initialize_database(db_path)
+    register_builtins(connection)
     connection.close()
 
     if args.init_db_only:
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
 
     host = args.host or config.server_host()
     port = args.port or config.server_port()
-    _run_server(db_path=db_path, host=host, port=port)
+    _run_server(db_path=db_path, host=host, port=port, config=config)
     return 0
 
 
@@ -107,8 +109,21 @@ def _effective_web_enabled(config: AppConfig, override: bool | None) -> bool:
     return config.server_enabled()
 
 
-def _run_server(db_path: Path, host: str, port: int) -> None:
+def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
+    import logging
+
     from .app import create_app
+    from .ingress import start_ingress_thread
+    from .worker import start_worker_thread
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
+
+    llm_config = config.llm
+    start_ingress_thread(str(db_path))
+    start_worker_thread(str(db_path), llm_config)
 
     app = create_app(str(db_path))
     uvicorn = import_module("uvicorn")

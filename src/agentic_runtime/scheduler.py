@@ -20,7 +20,7 @@ def queue_ready_tasks(
         JOIN projects ON projects.project_id = tasks.project_id
         WHERE tasks.state = 'created'
           AND goals.state = 'active'
-          AND projects.state = 'activated'
+          AND projects.state IN ('draft', 'activated')
         ORDER BY tasks.priority DESC, tasks.created_at ASC
         """
     ).fetchall()
