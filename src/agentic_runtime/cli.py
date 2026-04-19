@@ -45,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Initialize the runtime database and exit",
     )
+    parser.add_argument(
+        "--add-provider",
+        action="store_true",
+        help="Interactively add an LLM provider to the config file and exit",
+    )
     parser.set_defaults(web_enabled=None)
     return parser
 
@@ -62,6 +67,9 @@ def main(argv: list[str] | None = None) -> int:
             "Configuration file not found. Create one with "
             "'openDAGent --init-config <path>' or pass --config."
         )
+
+    if args.add_provider:
+        return _add_provider_wizard(config_path)
 
     config = load_app_config(config_path)
 
@@ -173,3 +181,150 @@ def _write_default_config(path: Path) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     default_config = Path(__file__).resolve().parent / "defaults" / "app.yaml"
     target_path.write_text(default_config.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+# ── --add-provider interactive wizard ────────────────────────────────────────
+
+_PROVIDER_PRESETS: dict[str, tuple[str, str, str]] = {
+    # key: (wire_type, display_label, default_endpoint)
+    "1":  ("openai",    "OpenAI",                      "https://api.openai.com/v1"),
+    "2":  ("anthropic", "Anthropic",                   "https://api.anthropic.com"),
+    "3":  ("openai",    "Google Gemini (AI Studio)",   "https://generativelanguage.googleapis.com/v1beta/openai"),
+    "4":  ("openai",    "Mistral",                     "https://api.mistral.ai/v1"),
+    "5":  ("openai",    "Azure OpenAI",                ""),
+    "6":  ("openai",    "MiniMax",                     "https://api.minimaxi.com/v1"),
+    "7":  ("openai",    "Zhipu AI / GLM (Z.AI)",       "https://open.bigmodel.cn/api/paas/v4"),
+    "8":  ("openai",    "Local / Ollama / vLLM",       "http://localhost:11434/v1"),
+    "9":  ("openai",    "Other OpenAI-compatible",     ""),
+}
+
+_DEFAULT_IDS: dict[str, str] = {
+    "1": "openai", "2": "anthropic", "3": "google", "4": "mistral",
+    "5": "azure",  "6": "minimax",   "7": "zhipu",  "8": "local", "9": "custom",
+}
+
+_DEFAULT_ENV_VARS: dict[str, str] = {
+    "1": "OPENAI_API_KEY",   "2": "ANTHROPIC_API_KEY", "3": "GOOGLE_API_KEY",
+    "4": "MISTRAL_API_KEY",  "5": "AZURE_OPENAI_API_KEY", "6": "MINIMAX_API_KEY",
+    "7": "ZHIPU_API_KEY",    "8": "",  "9": "API_KEY",
+}
+
+_LLM_FEATURES = [
+    "vision", "reasoning", "json_mode", "long_context",
+    "code", "image_generation", "native_web_search",
+]
+
+_ROLES = ["strong_reasoning", "balanced", "cheap_fast", "image_generation"]
+
+
+def _prompt(label: str, default: str = "") -> str:
+    display = f" [{default}]" if default else ""
+    value = input(f"{label}{display}: ").strip()
+    return value or default
+
+
+def _add_provider_wizard(config_path: Path) -> int:
+    import yaml
+
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        print("ERROR: Could not parse config file.")
+        return 1
+
+    data.setdefault("llm", {})
+    data["llm"].setdefault("providers", [])
+
+    print("\n╔══════════════════════════════╗")
+    print("║   openDAGent — Add Provider  ║")
+    print("╚══════════════════════════════╝\n")
+
+    # ── Choose provider type ──────────────────────────────────────────────────
+    print("Provider type:")
+    for k, (_, label, _) in _PROVIDER_PRESETS.items():
+        print(f"  {k}) {label}")
+    choice = input("\nChoice [1-9]: ").strip()
+    if choice not in _PROVIDER_PRESETS:
+        print("Invalid choice. Aborted.")
+        return 1
+
+    ptype, _label, default_endpoint = _PROVIDER_PRESETS[choice]
+
+    # ── Basic info ────────────────────────────────────────────────────────────
+    pid      = _prompt("Provider ID", _DEFAULT_IDS[choice])
+    endpoint = _prompt("Endpoint URL", default_endpoint)
+
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    if choice == "8":   # local — no auth
+        auth: dict = {"type": "none"}
+    else:
+        env_var = _prompt("API key environment variable", _DEFAULT_ENV_VARS.get(choice, "API_KEY"))
+        auth = {"type": "api_key", "env_var": env_var}
+
+    # ── Models ────────────────────────────────────────────────────────────────
+    models: list[dict] = []
+    feat_list = "  ".join(f"{i+1}={f}" for i, f in enumerate(_LLM_FEATURES))
+    role_list = "  ".join(f"{i+1}={r}" for i, r in enumerate(_ROLES))
+
+    print("\nAdd models (press Enter with empty ID when done):")
+    while True:
+        model_id = input("  Model ID: ").strip()
+        if not model_id:
+            if not models:
+                print("  (at least one model is required)")
+                continue
+            break
+
+        print(f"  Roles:    {role_list}")
+        role_input = input("  Role [1]: ").strip()
+        try:
+            role = _ROLES[int(role_input) - 1] if role_input else _ROLES[0]
+        except (ValueError, IndexError):
+            role = "balanced"
+
+        print(f"  Features: {feat_list}")
+        feat_input = input("  Features (e.g. 1,3,5 — or Enter for none): ").strip()
+        features: list[str] = []
+        for part in feat_input.split(","):
+            try:
+                idx = int(part.strip()) - 1
+                if 0 <= idx < len(_LLM_FEATURES):
+                    features.append(_LLM_FEATURES[idx])
+            except ValueError:
+                pass
+
+        models.append({"id": model_id, "role": role, "features": features})
+        print(f"  + {model_id}  role={role}  features={features or []}")
+
+    # ── Summary + confirm ─────────────────────────────────────────────────────
+    provider: dict = {
+        "id": pid,
+        "type": ptype,
+        "endpoint": endpoint,
+        "auth": auth,
+        "models": models,
+    }
+
+    print("\n--- Provider to add ---")
+    print(yaml.dump(provider, default_flow_style=False, allow_unicode=True).rstrip())
+    print("-----------------------")
+
+    confirm = input("\nAdd to config? [Y/n]: ").strip().lower()
+    if confirm == "n":
+        print("Aborted.")
+        return 0
+
+    # ── Write back ────────────────────────────────────────────────────────────
+    data["llm"]["providers"].append(provider)
+
+    # Set defaults if none exist yet
+    if not data["llm"].get("default_provider"):
+        data["llm"]["default_provider"] = pid
+        data["llm"]["default_model"] = models[0]["id"]
+        print(f"  default_provider → {pid},  default_model → {models[0]['id']}")
+
+    config_path.write_text(
+        yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    print(f"\nProvider '{pid}' added to {config_path}")
+    return 0

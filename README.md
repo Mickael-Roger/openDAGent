@@ -151,31 +151,49 @@ pip install openDAGent
 
 ### Configure
 
+Generate a starter config file:
+
 ```bash
-mkdir -p /etc/opendagent
-openDAGent --init-config /etc/opendagent/config.yaml
+mkdir -p ~/.config/opendagent
+openDAGent --init-config ~/.config/opendagent/config.yaml
 ```
 
-Edit the key values:
+Then edit the LLM section to point at your provider. The fastest path:
 
 ```yaml
-runtime:
-  workdir: /var/lib/opendagent
-  db_path: /var/lib/opendagent/runtime/runtime.db
-
-server:
-  enabled: true
-  host: 127.0.0.1
-  port: 8080
-
 llm:
-  # your model provider configuration
+  default_provider: openai
+  default_model: gpt-4.1
+  providers:
+    - id: openai
+      type: openai
+      endpoint: https://api.openai.com/v1
+      auth:
+        type: api_key
+        env_var: OPENAI_API_KEY
+      models:
+        - id: gpt-4.1
+          role: strong_reasoning
+          features: [vision, json_mode, long_context, code]
 ```
+
+You can also add a provider interactively:
+
+```bash
+openDAGent --config ~/.config/opendagent/config.yaml --add-provider
+```
+
+For all supported providers (OpenAI, Anthropic, Gemini, Mistral, Azure, MiniMax,
+Zhipu AI, Ollama, vLLM, …) and authentication methods, see
+**[docs/llm-providers.md](docs/llm-providers.md)**.
+
+A fully annotated config with every available option is in
+**[config.example.yaml](config.example.yaml)**.
 
 ### Start
 
 ```bash
-openDAGent --config /etc/opendagent/config.yaml
+openDAGent --config ~/.config/opendagent/config.yaml
 ```
 
 ### Open the Web UI
@@ -189,11 +207,12 @@ The dashboard shows all projects, task DAGs, runtime states, task details, and a
 ### Runtime Flags
 
 ```bash
-openDAGent --config path/to/config.yaml           # standard start
-openDAGent --config ... --host 0.0.0.0 --port 9090  # override bind
-openDAGent --config ... --no-web                  # headless mode
-openDAGent --config ... --init-db-only            # bootstrap db and exit
-openDAGent --init-config path/to/output.yaml      # write default config template
+openDAGent --config path/to/config.yaml              # standard start
+openDAGent --config ... --host 0.0.0.0 --port 9090   # override bind
+openDAGent --config ... --no-web                     # headless mode
+openDAGent --config ... --init-db-only               # bootstrap db and exit
+openDAGent --init-config path/to/output.yaml         # write default config template
+openDAGent --config ... --add-provider               # add an LLM provider interactively
 ```
 
 ---
