@@ -65,6 +65,7 @@ def create_app(
 
     _user_caps_dir: Path | None = Path(user_caps_dir) if user_caps_dir else None
     _mcp_servers: list[dict[str, Any]] = (mcp_config or {}).get("servers", [])
+    _llm_config: dict[str, Any] = llm_config or {}
 
     app = FastAPI(title="openDAGent", version="0.1.0")
     app.state.db_path = db_path
@@ -521,5 +522,40 @@ def create_app(
             "llm_features": LLM_FEATURES,
             "risk_levels": RISK_LEVELS,
         })
+
+    # ── Models page ───────────────────────────────────────────────────────────
+
+    @app.get("/models", response_class=HTMLResponse)
+    async def models_page(request: _FastAPIRequest) -> Any:
+        providers = []
+        for p in (_llm_config or {}).get("providers", []):
+            models = []
+            for m in p.get("models", []):
+                models.append({
+                    "id": m.get("id", ""),
+                    "role": m.get("role", ""),
+                    "features": m.get("features", []),
+                    "cost": m.get("cost"),
+                    "speed": m.get("speed"),
+                    "scores": m.get("scores", {}),
+                })
+            providers.append({
+                "id": p.get("id", ""),
+                "type": p.get("type", ""),
+                "endpoint": p.get("endpoint", ""),
+                "models": models,
+            })
+        default_provider = (_llm_config or {}).get("default_provider", "")
+        default_model = (_llm_config or {}).get("default_model", "")
+        return templates.TemplateResponse(
+            request=request,
+            name="models.html",
+            context={
+                "page_title": "Models",
+                "providers": providers,
+                "default_provider": default_provider,
+                "default_model": default_model,
+            },
+        )
 
     return app

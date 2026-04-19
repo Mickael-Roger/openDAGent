@@ -9,6 +9,16 @@ ready-to-paste `llm:` blocks for every supported provider and authentication met
 > Features gate capabilities at startup: if no configured model advertises `vision`,
 > the `analyze_image` capability is hidden automatically.
 
+Each model also accepts two optional indicators (1–10 scale, purely informational):
+
+| Field | Meaning |
+|---|---|
+| `cost` | Relative cost — 1 = cheapest, 10 = most expensive |
+| `speed` | Response speed — 1 = slowest, 10 = fastest |
+
+These are displayed on the **Models** page of the web UI as visual bars alongside `scores`.
+They do not affect model selection (unlike `scores` + `preferred_score`).
+
 ---
 
 ## OpenAI

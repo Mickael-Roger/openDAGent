@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Configuration</p>
+        <h1>Models</h1>
+        <p class="subtitle">All configured LLM providers and their models, with performance indicators and score dimensions.</p>
+    </div>
+</section>
+
+{% if providers %}
+{% for provider in providers %}
+<section class="panel" style="margin-bottom:1.5rem">
+    <div class="panel-header">
+        <div style="display:flex;align-items:center;gap:12px">
+            <h2 style="margin:0">{{ provider.id }}</h2>
+            <span class="cap-badge cap-badge-builtin">{{ provider.type }}</span>
+            {% if default_provider == provider.id %}
+            <span class="cap-badge" style="background:rgba(99,102,241,.18);color:#a5b4fc">default</span>
+            {% endif %}
+        </div>
+        <span style="color:var(--muted);font-size:0.8rem;font-family:monospace">{{ provider.endpoint }}</span>
+    </div>
+
+    {% if provider.models %}
+    <div class="cap-list">
+        {% for m in provider.models %}
+        <div class="cap-row" style="flex-direction:column;align-items:stretch;gap:10px">
+
+            <div class="cap-row-main" style="width:100%">
+                <div class="cap-row-title">
+                    <span class="cap-name" style="font-size:1rem">{{ m.id }}</span>
+                    {% if default_provider == provider.id and default_model == m.id %}
+                    <span class="pill pill-running" style="font-size:0.68rem;padding:3px 8px">default</span>
+                    {% endif %}
+                    <span class="cap-tag risk-low" style="font-size:0.72rem">{{ m.role }}</span>
+                </div>
+
+                <div class="cap-meta" style="margin-top:6px">
+                    {% for f in m.features %}
+                    <span class="cap-tag cap-tag-feature">{{ f }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {# Indicators row #}
+            <div class="model-indicators">
+                {# Cost #}
+                <div class="model-indicator">
+                    <span class="indicator-label">Cost</span>
+                    {% if m.cost is not none %}
+                    <div class="indicator-bar-track">
+                        <div class="indicator-bar indicator-bar-cost" style="width:{{ (m.cost / 10 * 100) | int }}%"></div>
+                    </div>
+                    <span class="indicator-value">{{ m.cost }}/10</span>
+                    {% else %}
+                    <span class="indicator-na">—</span>
+                    {% endif %}
+                </div>
+
+                {# Speed #}
+                <div class="model-indicator">
+                    <span class="indicator-label">Speed</span>
+                    {% if m.speed is not none %}
+                    <div class="indicator-bar-track">
+                        <div class="indicator-bar indicator-bar-speed" style="width:{{ (m.speed / 10 * 100) | int }}%"></div>
+                    </div>
+                    <span class="indicator-value">{{ m.speed }}/10</span>
+                    {% else %}
+                    <span class="indicator-na">—</span>
+                    {% endif %}
+                </div>
+
+                {# Scores #}
+                {% for dim, val in m.scores.items() %}
+                <div class="model-indicator">
+                    <span class="indicator-label">{{ dim }}</span>
+                    <div class="indicator-bar-track">
+                        <div class="indicator-bar indicator-bar-score" style="width:{{ (val / 10 * 100) | int }}%"></div>
+                    </div>
+                    <span class="indicator-value">{{ val }}/10</span>
+                </div>
+                {% endfor %}
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><p>No models configured for this provider.</p></div>
+    {% endif %}
+</section>
+{% endfor %}
+
+{% else %}
+<section class="panel">
+    <div class="empty-state">
+        <p>No providers configured. Add providers to the <code>llm.providers</code> section of your config file.</p>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

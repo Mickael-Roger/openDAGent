@@ -114,6 +114,8 @@ llm:
         - id: gpt-4.1
           role: strong_reasoning
           features: [vision, json_mode, long_context, code]
+          cost: 6    # 1 (cheapest) – 10 (most expensive), indicative only
+          speed: 7   # 1 (slowest)  – 10 (fastest),        indicative only
           scores:
             reasoning: 8
             coding: 8
@@ -121,6 +123,8 @@ llm:
         - id: gpt-4.1-mini
           role: balanced
           features: [vision, json_mode, code]
+          cost: 2
+          speed: 9
           scores:
             reasoning: 5
             coding: 5
@@ -145,6 +149,8 @@ llm:
         - id: claude-opus-4-6
           role: strong_reasoning
           features: [vision, reasoning, long_context, code, json_mode]
+          cost: 9
+          speed: 5
           scores:
             reasoning: 10
             coding: 9
@@ -152,6 +158,8 @@ llm:
         - id: claude-sonnet-4-6
           role: balanced
           features: [vision, long_context, code, json_mode]
+          cost: 5
+          speed: 8
           scores:
             reasoning: 7
             coding: 8
@@ -159,6 +167,8 @@ llm:
         - id: claude-haiku-4-5
           role: cheap_fast
           features: [vision, json_mode]
+          cost: 1
+          speed: 10
           scores:
             reasoning: 4
             writing: 5
