@@ -206,6 +206,33 @@ llm:
     #       role: cheap_fast
     #       features: [json_mode]
 
+    # ── ChatGPT subscription (OAuth — no API key required) ───────────────────
+    # Uses your ChatGPT Pro/Plus subscription instead of a paid API key.
+    # Authenticate once with: openDAGent --chatgpt-login
+    # The OAuth flow opens https://auth.openai.com/codex/device in your browser.
+    # Tokens are stored in ~/.config/opendagent/chatgpt_oauth.json and
+    # refreshed automatically.
+    # - id: chatgpt
+    #   type: chatgpt
+    #   models:
+    #     - id: gpt-4o
+    #       role: strong_reasoning
+    #       features: [vision, json_mode, long_context, code]
+    #       cost: 0       # included in your ChatGPT subscription
+    #       speed: 8
+    #       scores:
+    #         reasoning: 9
+    #         coding: 9
+    #         writing: 8
+    #     - id: o3
+    #       role: strong_reasoning
+    #       features: [reasoning, json_mode, long_context, code]
+    #       cost: 0
+    #       speed: 4
+    #       scores:
+    #         reasoning: 10
+    #         coding: 10
+
     # ── Local / self-hosted (Ollama, vLLM, LM Studio, …) ─────────────────────
     # Any OpenAI-compatible server works here.
     # - id: local

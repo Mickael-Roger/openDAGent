@@ -105,6 +105,12 @@ def resolve_api_key(auth_config: dict[str, Any]) -> str | None:
     return os.environ.get(str(env_var)) if env_var else None
 
 
+def _resolve_oauth_token() -> tuple[str, str | None]:
+    """Return ``(access_token, account_id)`` for a ChatGPT OAuth session."""
+    from .chatgpt_auth import get_valid_access_token
+    return get_valid_access_token()
+
+
 # ── Message conversion ────────────────────────────────────────────────────────
 #
 # Internal message format (used throughout the codebase):
@@ -205,6 +211,70 @@ def _anthropic_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+# ── OpenAI Responses API message converter ────────────────────────────────────
+#
+# The ChatGPT subscription endpoint (`https://chatgpt.com/backend-api/codex/responses`)
+# follows the OpenAI Responses API spec (not chat/completions).
+# Key differences:
+#   - Body uses `input` (array) instead of `messages`
+#   - System prompt goes in a `{"role": "system", "content": "..."}` item
+#   - Tool calls are top-level items: `{"type": "function_call", "call_id", "name", "arguments"}`
+#   - Tool results: `{"type": "function_call_output", "call_id", "output"}`
+#   - Response `output` array replaces `choices`
+#   - Usage keys: `input_tokens` / `output_tokens`
+
+def _to_responses_input(
+    messages: list[dict[str, Any]],
+    system: str | None,
+) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    if system:
+        result.append({"role": "system", "content": system})
+    for msg in messages:
+        role = msg["role"]
+        if role == "tool_result":
+            result.append({
+                "type": "function_call_output",
+                "call_id": msg["tool_call_id"],
+                "output": str(msg.get("content", "")),
+            })
+        elif role == "assistant" and msg.get("tool_calls"):
+            # Emit each tool call as a top-level function_call item, then the
+            # text content (if any) as a separate message item.
+            if msg.get("content"):
+                result.append({
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": msg["content"]}],
+                })
+            for tc in msg["tool_calls"]:
+                result.append({
+                    "type": "function_call",
+                    "call_id": tc["id"],
+                    "name": tc["name"],
+                    "arguments": json.dumps(tc["arguments"]),
+                })
+        elif role == "assistant":
+            result.append({
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": msg.get("content", "")}],
+            })
+        else:  # user
+            result.append({"role": role, "content": str(msg.get("content", ""))})
+    return result
+
+
+def _responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "function",
+            "name": t["name"],
+            "description": t.get("description", ""),
+            "parameters": t.get("parameters", {"type": "object", "properties": {}}),
+        }
+        for t in tools
+    ]
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def chat(
@@ -217,9 +287,11 @@ def chat(
     max_tokens: int = 8192,
 ) -> LLMResponse:
     provider_type = str(provider_config.get("type", "openai"))
-    endpoint = str(provider_config["endpoint"]).rstrip("/")
+    endpoint = str(provider_config.get("endpoint", "")).rstrip("/")
     api_key = resolve_api_key(provider_config.get("auth", {}))
 
+    if provider_type == "chatgpt":
+        return _chatgpt_chat(messages, model_name, system, tools, max_tokens)
     if provider_type == "anthropic":
         return _anthropic_chat(messages, endpoint, api_key, model_name, system, tools, max_tokens)
     return _openai_chat(messages, endpoint, api_key, model_name, system, tools, max_tokens)
@@ -351,6 +423,90 @@ def _anthropic_chat(
                 name=block["name"],
                 arguments=block["input"],
             ))
+    raw_usage = data.get("usage", {}) or {}
+    usage: dict[str, int] | None = None
+    if raw_usage:
+        usage = {
+            "prompt_tokens": int(raw_usage.get("input_tokens", 0)),
+            "completion_tokens": int(raw_usage.get("output_tokens", 0)),
+        }
+    return LLMResponse(content=content, tool_calls=tool_calls, usage=usage)
+
+
+# ── ChatGPT subscription (OAuth + Responses API) ─────────────────────────────
+
+_CHATGPT_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
+
+
+def _chatgpt_chat(
+    messages: list[dict[str, Any]],
+    model_name: str,
+    system: str | None,
+    tools: list[dict[str, Any]] | None,
+    max_tokens: int,
+) -> LLMResponse:
+    access_token, account_id = _resolve_oauth_token()
+
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    if account_id:
+        headers["ChatGPT-Account-Id"] = account_id
+
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "input": _to_responses_input(messages, system),
+        "max_output_tokens": max_tokens,
+    }
+    if tools:
+        payload["tools"] = _responses_tools(tools)
+
+    for attempt in range(10_000):  # effectively infinite
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                resp = client.post(_CHATGPT_ENDPOINT, headers=headers, json=payload)
+                resp.raise_for_status()
+            break
+        except Exception as exc:
+            if not _is_retryable(exc):
+                _log_http_error(exc, "ChatGPT")
+                raise
+            delay = _retry_delay(attempt, exc)
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.warning(
+                "ChatGPT request failed (attempt %d, status=%s): %s — retrying in %.0fs",
+                attempt + 1, status, exc, delay,
+            )
+            time.sleep(delay)
+
+    data = resp.json()
+
+    content: str | None = None
+    tool_calls: list[ToolCall] = []
+
+    for item in data.get("output", []):
+        item_type = item.get("type")
+        if item_type == "message":
+            for block in item.get("content", []):
+                if block.get("type") == "output_text":
+                    content = (content or "") + block["text"]
+        elif item_type == "function_call":
+            raw_args = item.get("arguments", "{}")
+            try:
+                arguments = json.loads(raw_args)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "ChatGPT tool call '%s' returned malformed JSON arguments: %r — using empty dict.",
+                    item.get("name"), raw_args,
+                )
+                arguments = {}
+            tool_calls.append(ToolCall(
+                id=item.get("call_id") or item.get("id", ""),
+                name=item.get("name", ""),
+                arguments=arguments,
+            ))
+
     raw_usage = data.get("usage", {}) or {}
     usage: dict[str, int] | None = None
     if raw_usage:

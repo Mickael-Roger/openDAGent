@@ -52,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Interactively add an LLM provider to the config file and exit",
     )
+    parser.add_argument(
+        "--chatgpt-login",
+        action="store_true",
+        help="Authenticate with your ChatGPT subscription via device flow and exit",
+    )
     parser.set_defaults(web_enabled=None)
     return parser
 
@@ -69,6 +74,11 @@ def main(argv: list[str] | None = None) -> int:
             "Configuration file not found. Create one with "
             "'openDAGent --init-config <path>' or pass --config."
         )
+
+    if args.chatgpt_login:
+        from .chatgpt_auth import login_device_flow
+        login_device_flow()
+        return 0
 
     if args.add_provider:
         return _add_provider_wizard(config_path)
