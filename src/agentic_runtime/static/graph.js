@@ -67,7 +67,7 @@ function renderGraph(graph) {
       .layering(layeringSimplex())
       .decross(decross)
       .coord(coordCenter())
-      .nodeSize([NW + HGAP, NH + VGAP])(dag);
+      .nodeSize(() => [NW + HGAP, NH + VGAP])(dag);
   }
 
   var dims;
