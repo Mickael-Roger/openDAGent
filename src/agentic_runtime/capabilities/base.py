@@ -238,7 +238,12 @@ class BaseCapability:
         conn: sqlite3.Connection,
         task: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """Build the starting message list from task description + goal chat history."""
+        """Build the starting message list from task description + goal chat history.
+
+        For work tasks (those with a description), the task description is always
+        the primary instruction. Goal conversation history is appended as context
+        so the LLM understands the broader project goal.
+        """
         messages: list[dict[str, Any]] = []
 
         # Include recent goal messages as conversation context
@@ -252,13 +257,35 @@ class BaseCapability:
             (task["goal_id"],),
         ).fetchall()
 
+        goal_messages: list[dict[str, Any]] = []
         for row in rows:
             role = "user" if row["author_type"] == "user" else "assistant"
-            messages.append({"role": role, "content": row["content"]})
+            goal_messages.append({"role": role, "content": row["content"]})
 
-        # If there are no messages yet, seed with task description
-        if not messages and task.get("description"):
-            messages.append({"role": "user", "content": task["description"]})
+        task_desc = (task.get("description") or "").strip()
+        task_title = (task.get("title") or "").strip()
+
+        if task_desc:
+            # Work task: task description is the primary instruction.
+            # Prepend goal conversation as background context in a single
+            # user message, then add the specific task instructions.
+            if goal_messages:
+                context_lines = []
+                for gm in goal_messages:
+                    prefix = "User" if gm["role"] == "user" else "Assistant"
+                    context_lines.append(f"{prefix}: {gm['content']}")
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "[Project conversation for context]\n"
+                        + "\n---\n".join(context_lines)
+                    ),
+                })
+            header = f"[Task: {task_title}]\n" if task_title else ""
+            messages.append({"role": "user", "content": f"{header}{task_desc}"})
+        elif goal_messages:
+            # Conversational task (chat_response, etc.): use goal messages directly
+            messages.extend(goal_messages)
 
         return messages
 

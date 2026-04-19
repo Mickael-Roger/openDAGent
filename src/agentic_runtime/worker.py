@@ -7,6 +7,7 @@ from typing import Any
 
 from .db import connect
 from .ids import new_id
+from .scheduler import queue_ready_tasks
 from .time import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 def _claim_task(connection: Any, worker_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT task_id, goal_id, project_id, capability_name
+        SELECT task_id, goal_id, project_id, capability_name, title, description
         FROM tasks
         WHERE state = 'queued'
         ORDER BY priority DESC, created_at ASC
@@ -83,6 +84,15 @@ def _run_task(
         )
         connection.commit()
         logger.info("Task %s completed.", task_id)
+
+        # Immediately check if any downstream tasks are now unblocked
+        # (don't wait for the next ingress poll cycle).
+        try:
+            queued = queue_ready_tasks(connection)
+            if queued:
+                logger.info("Unblocked %d task(s) after %s: %s", len(queued), task_id, queued)
+        except Exception:
+            logger.debug("queue_ready_tasks after completion failed (will retry via ingress).", exc_info=True)
 
     except Exception as exc:
         logger.exception("Task %s failed.", task_id)
