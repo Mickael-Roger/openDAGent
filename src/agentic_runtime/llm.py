@@ -29,6 +29,22 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 _RETRY_DELAYS = [10, 30, 120, 300, 600]  # 10s, 30s, 2m, 5m, 10m, 10m, …
 
 
+def _log_http_error(exc: Exception, provider_label: str) -> None:
+    """Log the response body for non-retryable HTTP errors to aid debugging."""
+    resp = getattr(exc, "response", None)
+    if resp is None:
+        return
+    status = resp.status_code
+    try:
+        body = resp.text[:2000]
+    except Exception:
+        body = "<unreadable>"
+    logger.error(
+        "%s API error %s — response body: %s",
+        provider_label, status, body,
+    )
+
+
 def _is_retryable(exc: Exception) -> bool:
     """Return True if the exception is transient and the request should be retried."""
     if isinstance(exc, httpx.HTTPStatusError):
@@ -238,6 +254,7 @@ def _openai_chat(
             break
         except Exception as exc:
             if not _is_retryable(exc):
+                _log_http_error(exc, "OpenAI-compatible")
                 raise
             delay = _retry_delay(attempt, exc)
             status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -304,6 +321,7 @@ def _anthropic_chat(
             break
         except Exception as exc:
             if not _is_retryable(exc):
+                _log_http_error(exc, "Anthropic")
                 raise
             delay = _retry_delay(attempt, exc)
             status = getattr(getattr(exc, "response", None), "status_code", None)
