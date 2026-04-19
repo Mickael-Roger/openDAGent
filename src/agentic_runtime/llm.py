@@ -197,7 +197,7 @@ def chat(
     *,
     system: str | None = None,
     tools: list[dict[str, Any]] | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
 ) -> LLMResponse:
     provider_type = str(provider_config.get("type", "openai"))
     endpoint = str(provider_config["endpoint"]).rstrip("/")
@@ -252,10 +252,20 @@ def _openai_chat(
     content: str | None = message.get("content")
     tool_calls: list[ToolCall] = []
     for tc in message.get("tool_calls") or []:
+        raw_args = tc["function"]["arguments"]
+        try:
+            arguments = json.loads(raw_args)
+        except json.JSONDecodeError:
+            logger.warning(
+                "Tool call '%s' returned malformed JSON arguments (truncated response?): %r — "
+                "using empty arguments so the LLM can recover.",
+                tc["function"]["name"], raw_args,
+            )
+            arguments = {}
         tool_calls.append(ToolCall(
             id=tc["id"],
             name=tc["function"]["name"],
-            arguments=json.loads(tc["function"]["arguments"]),
+            arguments=arguments,
         ))
     return LLMResponse(content=content, tool_calls=tool_calls)
 
@@ -326,7 +336,7 @@ def complete(
     model_name: str,
     *,
     system: str | None = None,
-    max_tokens: int = 2048,
+    max_tokens: int = 8192,
 ) -> str:
     resp = chat(messages, provider_config, model_name, system=system, max_tokens=max_tokens)
     return resp.content or ""
