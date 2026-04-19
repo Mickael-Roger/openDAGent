@@ -195,6 +195,48 @@ def create_app(
             connection.close()
         return JSONResponse(message)
 
+    @app.post("/api/projects/{project_id}/pause")
+    async def api_pause_project(project_id: str) -> Any:
+        connection = open_connection()
+        try:
+            row = connection.execute(
+                "SELECT state FROM projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Project not found")
+            if row["state"] not in ("draft", "activated"):
+                raise HTTPException(status_code=400, detail=f"Cannot pause a project in state '{row['state']}'")
+            from .time import utc_now_iso as _now
+            connection.execute(
+                "UPDATE projects SET state = 'paused', updated_at = ? WHERE project_id = ?",
+                (_now(), project_id),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        return JSONResponse({"project_id": project_id, "state": "paused"})
+
+    @app.post("/api/projects/{project_id}/resume")
+    async def api_resume_project(project_id: str) -> Any:
+        connection = open_connection()
+        try:
+            row = connection.execute(
+                "SELECT state FROM projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Project not found")
+            if row["state"] != "paused":
+                raise HTTPException(status_code=400, detail=f"Project is not paused (state: '{row['state']}')")
+            from .time import utc_now_iso as _now
+            connection.execute(
+                "UPDATE projects SET state = 'activated', updated_at = ? WHERE project_id = ?",
+                (_now(), project_id),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        return JSONResponse({"project_id": project_id, "state": "activated"})
+
     @app.delete("/api/projects/{project_id}")
     async def api_delete_project(project_id: str) -> Any:
         connection = open_connection()

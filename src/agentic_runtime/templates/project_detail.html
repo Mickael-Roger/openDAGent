@@ -13,6 +13,11 @@
     </div>
     <div class="hero-actions" style="display:flex;gap:10px;align-items:center">
         <a class="btn-ghost" href="{{ url_for('dashboard') }}">Back to projects</a>
+        {% if project.state in ('draft', 'activated') %}
+        <button class="btn-ghost" id="pause-project-btn" data-action="pause">Pause</button>
+        {% elif project.state == 'paused' %}
+        <button class="btn-ghost" id="pause-project-btn" data-action="resume">Resume</button>
+        {% endif %}
         <button class="btn-danger" id="delete-project-btn">Delete project</button>
     </div>
 </section>
@@ -107,6 +112,28 @@
             alert('Failed to delete project.');
         }
     });
+
+    const pauseBtn = document.getElementById('pause-project-btn');
+    if (pauseBtn) {
+        pauseBtn.addEventListener('click', async () => {
+            const action = pauseBtn.dataset.action;
+            const res = await fetch('/api/projects/{{ project.project_id }}/' + action, { method: 'POST' });
+            if (!res.ok) { alert('Action failed.'); return; }
+            const data = await res.json();
+            const newState = data.state;
+            // Update subtitle pill
+            document.querySelector('.subtitle .pill').className = `pill pill-${newState}`;
+            document.querySelector('.subtitle .pill').textContent = newState;
+            // Toggle button
+            if (newState === 'paused') {
+                pauseBtn.dataset.action = 'resume';
+                pauseBtn.textContent = 'Resume';
+            } else {
+                pauseBtn.dataset.action = 'pause';
+                pauseBtn.textContent = 'Pause';
+            }
+        });
+    }
 </script>
 <script>
     document.querySelectorAll('.artifact-view-btn').forEach(btn => {

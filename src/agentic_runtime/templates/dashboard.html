@@ -49,6 +49,15 @@
                 </div>
             </a>
             <div class="project-card-actions">
+                {% if project.state in ('draft', 'activated') %}
+                <button class="btn-ghost btn-sm pause-project-btn"
+                        data-project-id="{{ project.project_id }}"
+                        data-action="pause">Pause</button>
+                {% elif project.state == 'paused' %}
+                <button class="btn-ghost btn-sm pause-project-btn"
+                        data-project-id="{{ project.project_id }}"
+                        data-action="resume">Resume</button>
+                {% endif %}
                 <button class="btn-danger btn-sm delete-project-btn" data-project-id="{{ project.project_id }}" data-project-title="{{ project.title }}">Delete</button>
             </div>
         </div>
@@ -73,6 +82,31 @@
                 btn.closest('.project-card').remove();
             } else {
                 alert('Failed to delete project.');
+            }
+        });
+    });
+
+    document.querySelectorAll('.pause-project-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const action = btn.dataset.action;
+            const projectId = btn.dataset.projectId;
+            const res = await fetch(`/api/projects/${projectId}/${action}`, { method: 'POST' });
+            if (!res.ok) { alert('Action failed.'); return; }
+            const data = await res.json();
+            const newState = data.state;
+            // Update state pill
+            const pill = btn.closest('.project-card').querySelector('.pill');
+            pill.className = `pill pill-${newState}`;
+            pill.textContent = newState;
+            // Toggle button
+            if (newState === 'paused') {
+                btn.dataset.action = 'resume';
+                btn.textContent = 'Resume';
+            } else {
+                btn.dataset.action = 'pause';
+                btn.textContent = 'Pause';
             }
         });
     });
