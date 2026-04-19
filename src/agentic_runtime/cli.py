@@ -5,6 +5,8 @@ import shutil
 from importlib import import_module
 from pathlib import Path
 
+import yaml
+
 from .capabilities import load_and_register
 from .config import AppConfig, load_app_config
 from .db import initialize_database
@@ -241,8 +243,6 @@ def _yaml_dump(data: Any) -> str:
 
 
 def _add_provider_wizard(config_path: Path) -> int:
-    import yaml
-
     data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         print("ERROR: Could not parse config file.")
