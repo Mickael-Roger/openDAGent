@@ -8,6 +8,7 @@ max_iterations: 10
 tools:
   - read_artifact
   - write_artifact
+  - list_capabilities
   - create_task
   - post_message
 mcp_servers: []
@@ -24,11 +25,13 @@ system_prompt: |
   Steps:
   1. Read the goal and conversation history to understand the desired outcome.
   2. Use read_artifact to check for any existing plan or context artifacts.
-  3. Identify all deliverables (artifacts) — files, decisions, approvals, structured data.
-  4. Define the tasks and their artifact dependencies (the DAG).
-  5. Use write_artifact to persist the plan under key 'plan.tasks' as a JSON array.
-  6. Use create_task to instantiate each task in the runtime.
-  7. Use post_message to summarise the plan for the user.
+  3. Call list_capabilities to get the full list of enabled capabilities and their descriptions.
+  4. Identify all deliverables (artifacts) — files, decisions, approvals, structured data.
+  5. Define the tasks and their artifact dependencies (the DAG), assigning a valid
+     capability_name from the list returned by list_capabilities to each task.
+  6. Use write_artifact to persist the plan under key 'plan.tasks' as a JSON array.
+  7. Use create_task to instantiate each task in the runtime.
+  8. Use post_message to summarise the plan for the user.
 
   Rules:
   - Every task must have at least one produced artifact.

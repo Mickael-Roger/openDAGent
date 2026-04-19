@@ -151,6 +151,42 @@ class CreateTask(Tool):
         return ", ".join(parts) + "."
 
 
+class ListCapabilities(Tool):
+    name = "list_capabilities"
+    description = (
+        "Return the list of all currently enabled capabilities with their names and descriptions. "
+        "Call this before create_task to know which capability_name values are valid and what each one does."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+
+    def run(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+        **_: Any,
+    ) -> str:
+        import json as _json
+        rows = conn.execute(
+            "SELECT capability_name, definition_json FROM capabilities WHERE enabled = 1 ORDER BY capability_name"
+        ).fetchall()
+        lines: list[str] = []
+        for row in rows:
+            cap_name = row["capability_name"]
+            try:
+                defn = _json.loads(row["definition_json"])
+                desc = defn.get("description", "").strip().replace("\n", " ")
+            except Exception:
+                desc = ""
+            lines.append(f"- {cap_name}: {desc}" if desc else f"- {cap_name}")
+        if not lines:
+            return "No capabilities are currently enabled."
+        return "Enabled capabilities:\n" + "\n".join(lines)
+
+
 class AskUser(Tool):
     name = "ask_user"
     description = (
