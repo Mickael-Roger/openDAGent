@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <section class="hero">
     <div>
@@ -20,7 +24,11 @@
         {% for msg in messages %}
         <div class="chat-bubble chat-bubble-{{ msg.author_type }}">
             <span class="chat-author">{{ msg.author_type }}</span>
-            <p>{{ msg.content }}</p>
+            {% if msg.author_type == 'user' %}
+            <p class="chat-plain">{{ msg.content }}</p>
+            {% else %}
+            <div class="chat-md" data-md="{{ msg.content | e }}"></div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -43,6 +51,15 @@
 
     // Track the latest message timestamp for polling
     let lastMessageTs = {{ (messages[-1].message_ts if messages else '') | tojson }};
+
+    // Configure marked
+    marked.setOptions({ breaks: true, gfm: true });
+
+    // Render all server-side markdown bubbles on load
+    document.querySelectorAll('.chat-md[data-md]').forEach(el => {
+        el.innerHTML = marked.parse(el.dataset.md);
+        delete el.dataset.md;
+    });
 
     // Scroll to bottom on load
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -105,13 +122,24 @@
 
         const div = document.createElement('div');
         div.className = `chat-bubble chat-bubble-${authorType}`;
+
         const author = document.createElement('span');
         author.className = 'chat-author';
         author.textContent = authorType;
-        const p = document.createElement('p');
-        p.textContent = content;
         div.appendChild(author);
-        div.appendChild(p);
+
+        if (authorType === 'user') {
+            const p = document.createElement('p');
+            p.className = 'chat-plain';
+            p.textContent = content;
+            div.appendChild(p);
+        } else {
+            const md = document.createElement('div');
+            md.className = 'chat-md';
+            md.innerHTML = marked.parse(content);
+            div.appendChild(md);
+        }
+
         messagesEl.appendChild(div);
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
