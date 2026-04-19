@@ -60,7 +60,7 @@ def create_app(
 
     conn = initialize_database(db_path)
     extra_dirs = [Path(d) for d in extra_capability_dirs] if extra_capability_dirs else None
-    load_and_register(conn, extra_dirs, llm_config=llm_config)
+    load_and_register(conn, extra_dirs, llm_config=llm_config, mcp_config=mcp_config)
     conn.close()
 
     _user_caps_dir: Path | None = Path(user_caps_dir) if user_caps_dir else None

@@ -85,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         connection,
         [user_caps_dir] if user_caps_dir.exists() else None,
         llm_config=config.llm,
+        mcp_config=config.mcp,
     )
     connection.close()
 

@@ -302,6 +302,19 @@ opencode:
 mcp:
   servers: []
 
+  # ── Playwright (browser automation) ──────────────────────────────────────
+  # Required for the browser_use capability. Install with:
+  #   npx playwright install chromium
+  # - id: playwright
+  #   transport: stdio
+  #   command: npx
+  #   args: ["@playwright/mcp@latest"]
+  # Optional: run headless (default) or headed for debugging:
+  # - id: playwright
+  #   transport: stdio
+  #   command: npx
+  #   args: ["@playwright/mcp@latest", "--headed"]
+
   # ── stdio server (local process) ─────────────────────────────────────────
   # The server is launched as a child process; JSON-RPC over stdin/stdout.
   #

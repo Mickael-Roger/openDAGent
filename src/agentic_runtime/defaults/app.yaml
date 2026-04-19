@@ -132,6 +132,12 @@ opencode:
 
 mcp:
   servers: []
+  # Playwright browser automation — required for the browser_use capability:
+  # - id: playwright
+  #   transport: stdio
+  #   command: npx
+  #   args: ["@playwright/mcp@latest"]
+  #
   # Example stdio server:
   # - id: filesystem
   #   transport: stdio

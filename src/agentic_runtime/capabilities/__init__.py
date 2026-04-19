@@ -175,23 +175,39 @@ def _supported_features(llm_config: dict[str, Any] | None) -> set[str]:
     return features
 
 
-def _capability_is_available(defn: CapabilityDef, supported: set[str]) -> bool:
+def _configured_mcp_ids(mcp_config: dict[str, Any] | None) -> set[str]:
+    """Return the set of MCP server IDs declared in the config."""
+    if not mcp_config:
+        return set()
+    return {s.get("id", "") for s in mcp_config.get("servers", []) if s.get("id")}
+
+
+def _capability_is_available(
+    defn: CapabilityDef,
+    supported: set[str],
+    mcp_ids: set[str] | None = None,
+) -> bool:
     """
     A capability is available when:
     1. All llm_features requirements are satisfied by at least one configured model.
     2. If availability_conditions is non-empty, at least one condition is met:
-       - "env:VAR"     → environment variable VAR is set and non-empty
-       - "feature:F"   → LLM feature F is in the supported set
+       - "env:VAR"      → environment variable VAR is set and non-empty
+       - "feature:F"    → LLM feature F is in the supported set
+       - "binary:BIN"   → binary BIN is present in PATH
+       - "mcp:ID"       → MCP server with that ID is declared in config
     """
     if not all(f in supported for f in defn.llm_features):
         return False
     if defn.availability_conditions:
+        ids = mcp_ids or set()
         for cond in defn.availability_conditions:
             if cond.startswith("env:") and os.environ.get(cond[4:], "").strip():
                 return True
             if cond.startswith("feature:") and cond[8:] in supported:
                 return True
             if cond.startswith("binary:") and shutil.which(cond[7:]) is not None:
+                return True
+            if cond.startswith("mcp:") and cond[4:] in ids:
                 return True
         return False
     return True
@@ -203,6 +219,7 @@ def load_and_register(
     connection: sqlite3.Connection,
     extra_dirs: list[Path] | None = None,
     llm_config: dict[str, Any] | None = None,
+    mcp_config: dict[str, Any] | None = None,
 ) -> None:
     """
     Load capability YAML files from the bundled defaults dir and any extra dirs,
@@ -225,13 +242,14 @@ def load_and_register(
         merged.update(_load_yaml_dir(d))
 
     supported = _supported_features(llm_config)
+    mcp_ids = _configured_mcp_ids(mcp_config)
 
     now = utc_now_iso()
     registered: dict[str, CapabilityDef] = {}
     skipped: list[str] = []
 
     for defn in merged.values():
-        if not _capability_is_available(defn, supported):
+        if not _capability_is_available(defn, supported, mcp_ids):
             reason = (
                 f"llm_features={defn.llm_features}" if defn.llm_features else
                 f"conditions={defn.availability_conditions}"
