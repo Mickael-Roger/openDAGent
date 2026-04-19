@@ -110,9 +110,13 @@ class WebSearch(Tool):
         count: int = 8,
         **_: Any,
     ) -> str:
-        api_key = os.environ.get("BRAVE_API_KEY", "")
+        api_key = os.environ.get("BRAVE_API_KEY", "").strip()
         if not api_key:
-            return "Error: BRAVE_API_KEY environment variable is not set."
+            return (
+                "BRAVE_API_KEY is not configured. "
+                "If your model supports native web search, use that capability directly "
+                "instead of calling this tool."
+            )
 
         count = max(1, min(20, int(count)))
         try:

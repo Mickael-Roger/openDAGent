@@ -769,6 +769,13 @@ a {
   color: #9ff5e4;
 }
 
+.cap-tag-condition {
+  background: rgba(180, 130, 255, 0.1);
+  border-color: rgba(180, 130, 255, 0.25);
+  color: #dbb8ff;
+  font-style: italic;
+}
+
 .risk-low      { background: rgba(69, 208, 184, 0.12); color: #9ff5e4; border: 1px solid rgba(69, 208, 184, 0.25); }
 .risk-medium   { background: rgba(255, 196, 92, 0.12); color: #ffe5b8; border: 1px solid rgba(255, 196, 92, 0.25); }
 .risk-high     { background: rgba(255, 130, 92, 0.14); color: #ffd4b8; border: 1px solid rgba(255, 130, 92, 0.3); }

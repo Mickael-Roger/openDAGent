@@ -45,10 +45,14 @@ llm:
         - id: gpt-4.1-mini
           role: balanced
           features: [vision, json_mode, code]
-        # Uncomment to enable image generation capabilities:
+        # Uncomment to enable image generation (any OpenAI-compatible diffusion model):
         # - id: dall-e-3
         #   role: image_generation
         #   features: [image_generation]
+        # Uncomment to enable native web search via GPT-4o with browsing:
+        # - id: gpt-4o-search-preview
+        #   role: balanced
+        #   features: [native_web_search]
     - id: anthropic
       type: anthropic
       endpoint: https://api.anthropic.com
@@ -62,6 +66,10 @@ llm:
         - id: claude-sonnet-4-5
           role: balanced
           features: [vision, long_context, code, json_mode]
+        # Uncomment to enable native web search via Claude (when available):
+        # - id: claude-sonnet-4-5
+        #   role: balanced
+        #   features: [vision, long_context, code, json_mode, native_web_search]
     - id: local
       type: openai
       endpoint: http://localhost:8000/v1

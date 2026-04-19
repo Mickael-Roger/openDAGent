@@ -36,7 +36,8 @@
                 <div class="cap-meta">
                     <span class="cap-tag risk-{{ cap.risk_level }}">{{ cap.risk_level }}</span>
                     {% for t in cap.tools %}<span class="cap-tag">{{ t }}</span>{% endfor %}
-                    {% for f in cap.llm_features %}<span class="cap-tag cap-tag-feature">{{ f }}</span>{% endfor %}
+                    {% for f in cap.llm_features %}<span class="cap-tag cap-tag-feature">requires: {{ f }}</span>{% endfor %}
+                    {% for c in cap.availability_conditions %}<span class="cap-tag cap-tag-condition">{{ c }}</span>{% endfor %}
                     {% for m in cap.mcp_servers %}<span class="cap-tag cap-tag-mcp">MCP: {{ m }}</span>{% endfor %}
                 </div>
             </div>

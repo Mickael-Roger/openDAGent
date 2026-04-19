@@ -341,6 +341,7 @@ def create_app(
                 "tools": data.get("tools", []),
                 "mcp_servers": data.get("mcp_servers", []),
                 "llm_features": data.get("llm_features", []),
+                "availability_conditions": data.get("availability_conditions", []),
                 "max_iterations": data.get("max_iterations", 20),
                 "is_user": is_user_capability(row["capability_name"], _user_caps_dir),
             })
@@ -387,6 +388,7 @@ def create_app(
             "tools": data.get("tools", []),
             "mcp_servers": data.get("mcp_servers", []),
             "llm_features": data.get("llm_features", []),
+            "availability_conditions": data.get("availability_conditions", []),
             "max_iterations": data.get("max_iterations", 20),
             "system_prompt": data.get("system_prompt", ""),
             "created_at": row["created_at"],
@@ -428,6 +430,7 @@ def create_app(
                 "tools": data.get("tools", []),
                 "mcp_servers": data.get("mcp_servers", []),
                 "llm_features": data.get("llm_features", []),
+                "availability_conditions": data.get("availability_conditions", []),
                 "max_iterations": data.get("max_iterations", 20),
                 "is_user": is_user_capability(row["capability_name"], _user_caps_dir),
             })

@@ -29,6 +29,7 @@ class BaseCapability:
     risk_level: str = "low"
     system_prompt: str = ""
     llm_features: list[str] = []
+    availability_conditions: list[str] = []
     tools: list[str] = []        # native tool names
     mcp_servers: list[str] = []  # MCP server IDs (from config)
     max_iterations: int = _MAX_ITERATIONS_DEFAULT

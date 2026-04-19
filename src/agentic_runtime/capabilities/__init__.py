@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,12 +17,13 @@ logger = logging.getLogger(__name__)
 
 # LLM features that a capability may require
 LLM_FEATURES = [
-    "vision",            # can process images in the prompt (multimodal input)
-    "reasoning",         # extended thinking / chain-of-thought (o1, claude-thinking)
-    "json_mode",         # guaranteed structured JSON output
-    "long_context",      # 100k+ token context window
-    "code",              # specialised code generation
-    "image_generation",  # can generate images (DALL-E, Stable Diffusion, etc.)
+    "vision",             # can process images in the prompt (multimodal input)
+    "reasoning",          # extended thinking / chain-of-thought (o1, claude-thinking)
+    "json_mode",          # guaranteed structured JSON output
+    "long_context",       # 100k+ token context window
+    "code",               # specialised code generation
+    "image_generation",   # can generate images (any diffusion model via compatible API)
+    "native_web_search",  # built-in web search (Perplexity, GPT-4o browsing, etc.)
 ]
 
 RISK_LEVELS = ["low", "medium", "high", "critical"]
@@ -39,6 +41,11 @@ class CapabilityDef:
     mcp_servers: list[str]
     max_iterations: int = 20
     llm_features: list[str] = field(default_factory=list)
+    # Optional availability gate: if non-empty, at least one condition must be
+    # satisfied at startup for this capability to be registered.
+    # Format: "env:VAR_NAME"     → env var VAR_NAME must be non-empty
+    #         "feature:FEAT"     → LLM feature FEAT must be in supported set
+    availability_conditions: list[str] = field(default_factory=list)
 
 
 # ── In-memory registry (populated by load_and_register) ───────────────────────
@@ -76,6 +83,7 @@ def _cap_from_dict(data: dict[str, Any]) -> CapabilityDef:
         mcp_servers=list(data.get("mcp_servers", [])),
         max_iterations=int(data.get("max_iterations", 20)),
         llm_features=list(data.get("llm_features", [])),
+        availability_conditions=list(data.get("availability_conditions", [])),
     )
 
 
@@ -90,6 +98,7 @@ def save_user_capability(defn: CapabilityDef, user_caps_dir: Path) -> Path:
         "risk_level": defn.risk_level,
         "max_iterations": defn.max_iterations,
         "llm_features": defn.llm_features,
+        "availability_conditions": defn.availability_conditions,
         "tools": defn.tools,
         "mcp_servers": defn.mcp_servers,
         "system_prompt": defn.system_prompt,
@@ -124,6 +133,7 @@ def _upsert_capability(connection: sqlite3.Connection, defn: CapabilityDef, now:
         "mcp_servers": defn.mcp_servers,
         "max_iterations": defn.max_iterations,
         "llm_features": defn.llm_features,
+        "availability_conditions": defn.availability_conditions,
     })
     connection.execute(
         """
@@ -158,10 +168,22 @@ def _supported_features(llm_config: dict[str, Any] | None) -> set[str]:
 
 def _capability_is_available(defn: CapabilityDef, supported: set[str]) -> bool:
     """
-    A capability is available if every feature it requires is present in the
-    supported set, OR if it has no llm_features requirements at all.
+    A capability is available when:
+    1. All llm_features requirements are satisfied by at least one configured model.
+    2. If availability_conditions is non-empty, at least one condition is met:
+       - "env:VAR"     → environment variable VAR is set and non-empty
+       - "feature:F"   → LLM feature F is in the supported set
     """
-    return all(f in supported for f in defn.llm_features)
+    if not all(f in supported for f in defn.llm_features):
+        return False
+    if defn.availability_conditions:
+        for cond in defn.availability_conditions:
+            if cond.startswith("env:") and os.environ.get(cond[4:], "").strip():
+                return True
+            if cond.startswith("feature:") and cond[8:] in supported:
+                return True
+        return False
+    return True
 
 
 # ── load_and_register ─────────────────────────────────────────────────────────
@@ -271,6 +293,7 @@ def get_executor(
             mcp_servers=data.get("mcp_servers", []),
             max_iterations=data.get("max_iterations", 20),
             llm_features=data.get("llm_features", []),
+            availability_conditions=data.get("availability_conditions", []),
         )
 
     if defn is None:
@@ -285,6 +308,7 @@ def get_executor(
     cap.mcp_servers = list(defn.mcp_servers)
     cap.max_iterations = defn.max_iterations
     cap.llm_features = list(defn.llm_features)
+    cap.availability_conditions = list(defn.availability_conditions)
     return cap
 
 
