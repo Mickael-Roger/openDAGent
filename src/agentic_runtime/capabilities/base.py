@@ -30,6 +30,7 @@ class BaseCapability:
     system_prompt: str = ""
     llm_features: list[str] = []
     availability_conditions: list[str] = []
+    preferred_score: str = ""    # score dimension used to pick the best model
     tools: list[str] = []        # native tool names
     mcp_servers: list[str] = []  # MCP server IDs (from config)
     max_iterations: int = _MAX_ITERATIONS_DEFAULT
@@ -123,11 +124,50 @@ class BaseCapability:
     def _resolve_provider(
         self, llm_config: dict[str, Any]
     ) -> tuple[dict[str, Any], str]:
+        """
+        Select the best (provider, model_id) pair for this capability.
+
+        If `preferred_score` is set, iterate over all configured models, filter
+        to those that satisfy `llm_features` requirements, and pick the one with
+        the highest score for that dimension.  Ties are broken by declaration
+        order (first wins).  Falls back to default_provider / default_model when:
+          - preferred_score is empty
+          - no model declares a score for that dimension
+          - no model satisfies the llm_features requirements
+        """
+        providers_list: list[dict[str, Any]] = llm_config.get("providers", [])
+
+        if self.preferred_score:
+            required_features = set(self.llm_features)
+            best_score: int | float = -1
+            best_provider: dict[str, Any] | None = None
+            best_model_id: str | None = None
+
+            for provider in providers_list:
+                for model in provider.get("models", []):
+                    model_features = set(model.get("features", []))
+                    if not required_features.issubset(model_features):
+                        continue
+                    score = model.get("scores", {}).get(self.preferred_score, -1)
+                    if score > best_score:
+                        best_score = score
+                        best_provider = provider
+                        best_model_id = model["id"]
+
+            if best_provider is not None and best_model_id is not None:
+                logger.debug(
+                    "Capability '%s': selected model '%s/%s' (score %s=%s).",
+                    self.name, best_provider.get("id"), best_model_id,
+                    self.preferred_score, best_score,
+                )
+                return best_provider, best_model_id
+
+        # Default fallback
         provider_id = str(llm_config.get("default_provider", "openai"))
-        model = str(llm_config.get("default_model", "gpt-4.1"))
-        providers = {p["id"]: p for p in llm_config.get("providers", [])}
-        provider = providers.get(provider_id) or next(iter(providers.values()), {})
-        return provider, model
+        model_id = str(llm_config.get("default_model", "gpt-4.1"))
+        providers_by_id = {p["id"]: p for p in providers_list}
+        provider = providers_by_id.get(provider_id) or next(iter(providers_by_id.values()), {})
+        return provider, model_id
 
     def _build_initial_messages(
         self,

@@ -1,4 +1,5 @@
 name: code_review
+preferred_score: coding
 description: Review code for correctness, quality, security, and best practices using the opencode AI coding agent.
 risk_level: low
 max_iterations: 8

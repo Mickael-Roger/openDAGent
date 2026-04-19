@@ -1,4 +1,5 @@
 name: plan_project
+preferred_score: reasoning
 description: >
   Analyzes a project goal and its conversation history, then produces a structured
   execution plan as a task graph written to the 'plan.tasks' artifact.

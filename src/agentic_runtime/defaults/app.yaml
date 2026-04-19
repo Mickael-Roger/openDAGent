@@ -42,9 +42,17 @@ llm:
         - id: gpt-4.1
           role: strong_reasoning
           features: [vision, json_mode, long_context, code]
+          scores:
+            reasoning: 8
+            coding: 8
+            writing: 7
         - id: gpt-4.1-mini
           role: balanced
           features: [vision, json_mode, code]
+          scores:
+            reasoning: 5
+            coding: 5
+            writing: 5
         # Uncomment to enable image generation (any OpenAI-compatible diffusion model):
         # - id: dall-e-3
         #   role: image_generation
@@ -63,9 +71,17 @@ llm:
         - id: claude-opus-4-5
           role: strong_reasoning
           features: [vision, reasoning, long_context, code, json_mode]
+          scores:
+            reasoning: 10
+            coding: 9
+            writing: 9
         - id: claude-sonnet-4-5
           role: balanced
           features: [vision, long_context, code, json_mode]
+          scores:
+            reasoning: 7
+            coding: 8
+            writing: 8
         # Uncomment to enable native web search via Claude (when available):
         # - id: claude-sonnet-4-5
         #   role: balanced

@@ -42,6 +42,11 @@
                 <input type="number" name="max_iterations" value="20" min="1" max="100">
                 <small class="field-hint">Maximum LLM loop iterations before the task is forced to complete</small>
             </div>
+            <div class="form-field">
+                <label>Preferred Score Dimension</label>
+                <input type="text" name="preferred_score" placeholder="e.g. coding, reasoning, writing">
+                <small class="field-hint">When set, the highest-scoring model for this dimension is selected automatically. Leave blank to use the default model.</small>
+            </div>
         </div>
 
         <div class="form-field">
@@ -117,10 +122,11 @@
             description:    fd.get('description'),
             risk_level:     fd.get('risk_level'),
             system_prompt:  fd.get('system_prompt'),
-            max_iterations: parseInt(fd.get('max_iterations'), 10),
-            tools:          fd.getAll('tools'),
-            mcp_servers:    fd.getAll('mcp_servers'),
-            llm_features:   fd.getAll('llm_features'),
+            max_iterations:  parseInt(fd.get('max_iterations'), 10),
+            preferred_score: fd.get('preferred_score') || '',
+            tools:           fd.getAll('tools'),
+            mcp_servers:     fd.getAll('mcp_servers'),
+            llm_features:    fd.getAll('llm_features'),
         };
 
         const res = await fetch('/api/capabilities', {

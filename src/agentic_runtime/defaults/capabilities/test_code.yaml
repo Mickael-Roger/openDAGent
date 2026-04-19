@@ -1,4 +1,5 @@
 name: test_code
+preferred_score: coding
 description: Write unit and integration tests for existing code using the opencode AI coding agent.
 risk_level: low
 max_iterations: 10

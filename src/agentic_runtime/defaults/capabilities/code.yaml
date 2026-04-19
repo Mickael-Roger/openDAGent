@@ -1,4 +1,5 @@
 name: code
+preferred_score: coding
 description: Write new code or implement features using the opencode AI coding agent.
 risk_level: medium
 max_iterations: 10

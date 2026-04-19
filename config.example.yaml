@@ -88,6 +88,14 @@ inputs:
 #   code             — specialist code generation (also needed by opencode)
 #   image_generation — can generate images via a diffusion-compatible API
 #   native_web_search — built-in web search (no Brave API key needed)
+#
+# Model scores (optional):
+#   Each model can declare a `scores` map of dimension → integer (1–10).
+#   When a capability declares `preferred_score: <dimension>`, openDAGent
+#   automatically selects the highest-scoring eligible model for that task.
+#   Dimensions are user-defined. Built-in capabilities use:
+#     coding, reasoning, writing, vision, image_generation
+#   Falls back to default_model when no model has a score for that dimension.
 llm:
   # Default provider/model used when a task does not specify one explicitly.
   default_provider: openai
@@ -106,9 +114,17 @@ llm:
         - id: gpt-4.1
           role: strong_reasoning
           features: [vision, json_mode, long_context, code]
+          scores:
+            reasoning: 8
+            coding: 8
+            writing: 7
         - id: gpt-4.1-mini
           role: balanced
           features: [vision, json_mode, code]
+          scores:
+            reasoning: 5
+            coding: 5
+            writing: 5
         # GPT-4o with native web browsing:
         # - id: gpt-4o-search-preview
         #   role: balanced
@@ -129,12 +145,23 @@ llm:
         - id: claude-opus-4-6
           role: strong_reasoning
           features: [vision, reasoning, long_context, code, json_mode]
+          scores:
+            reasoning: 10
+            coding: 9
+            writing: 9
         - id: claude-sonnet-4-6
           role: balanced
           features: [vision, long_context, code, json_mode]
+          scores:
+            reasoning: 7
+            coding: 8
+            writing: 8
         - id: claude-haiku-4-5
           role: cheap_fast
           features: [vision, json_mode]
+          scores:
+            reasoning: 4
+            writing: 5
         # Claude with native web search (when feature becomes generally available):
         # - id: claude-sonnet-4-6
         #   role: balanced

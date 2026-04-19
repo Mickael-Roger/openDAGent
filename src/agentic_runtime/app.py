@@ -342,6 +342,7 @@ def create_app(
                 "mcp_servers": data.get("mcp_servers", []),
                 "llm_features": data.get("llm_features", []),
                 "availability_conditions": data.get("availability_conditions", []),
+                "preferred_score": data.get("preferred_score", ""),
                 "max_iterations": data.get("max_iterations", 20),
                 "is_user": is_user_capability(row["capability_name"], _user_caps_dir),
             })
@@ -389,6 +390,7 @@ def create_app(
             "mcp_servers": data.get("mcp_servers", []),
             "llm_features": data.get("llm_features", []),
             "availability_conditions": data.get("availability_conditions", []),
+            "preferred_score": data.get("preferred_score", ""),
             "max_iterations": data.get("max_iterations", 20),
             "system_prompt": data.get("system_prompt", ""),
             "created_at": row["created_at"],
@@ -431,6 +433,7 @@ def create_app(
                 "mcp_servers": data.get("mcp_servers", []),
                 "llm_features": data.get("llm_features", []),
                 "availability_conditions": data.get("availability_conditions", []),
+                "preferred_score": data.get("preferred_score", ""),
                 "max_iterations": data.get("max_iterations", 20),
                 "is_user": is_user_capability(row["capability_name"], _user_caps_dir),
             })
@@ -455,6 +458,7 @@ def create_app(
             mcp_servers=list(body.get("mcp_servers", [])),
             max_iterations=int(body.get("max_iterations", 20)),
             llm_features=list(body.get("llm_features", [])),
+            preferred_score=str(body.get("preferred_score", "")).strip(),
         )
 
         save_user_capability(defn, _user_caps_dir)
@@ -483,6 +487,7 @@ def create_app(
             mcp_servers=list(body.get("mcp_servers", [])),
             max_iterations=int(body.get("max_iterations", 20)),
             llm_features=list(body.get("llm_features", [])),
+            preferred_score=str(body.get("preferred_score", "")).strip(),
         )
 
         save_user_capability(defn, _user_caps_dir)

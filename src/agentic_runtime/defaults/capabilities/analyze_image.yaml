@@ -1,4 +1,5 @@
 name: analyze_image
+preferred_score: vision
 description: >
   Analyzes one or more images and produces a detailed description, structured
   data extraction, or visual QA report. Requires a vision-capable LLM.

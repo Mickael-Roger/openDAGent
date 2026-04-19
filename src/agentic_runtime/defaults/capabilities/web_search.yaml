@@ -1,4 +1,5 @@
 name: web_search
+preferred_score: reasoning
 description: >
   Searches the web for information on a topic, fetches the most relevant pages,
   and produces a synthesized research report. Uses Brave Search API (if

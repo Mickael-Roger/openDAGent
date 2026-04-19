@@ -1,4 +1,5 @@
 name: generate_image
+preferred_score: image_generation
 description: >
   Generates images from text prompts using the configured image generation model
   and saves them to the task workspace. Requires a provider with the

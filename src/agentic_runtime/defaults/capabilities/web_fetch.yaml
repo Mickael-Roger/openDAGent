@@ -1,4 +1,5 @@
 name: web_fetch
+preferred_score: reasoning
 description: >
   Fetches one or more URLs and extracts their text content. Use for reading
   documentation, articles, API specs, or any publicly accessible web resource.

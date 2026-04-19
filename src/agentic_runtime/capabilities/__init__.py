@@ -46,7 +46,12 @@ class CapabilityDef:
     # satisfied at startup for this capability to be registered.
     # Format: "env:VAR_NAME"     → env var VAR_NAME must be non-empty
     #         "feature:FEAT"     → LLM feature FEAT must be in supported set
+    #         "binary:BIN"       → binary BIN must be in PATH
     availability_conditions: list[str] = field(default_factory=list)
+    # Score dimension used to select the best model for this capability.
+    # Must match a key declared under a model's `scores:` map in the config.
+    # If empty or no model has a matching score, the global default model is used.
+    preferred_score: str = ""
 
 
 # ── In-memory registry (populated by load_and_register) ───────────────────────
@@ -85,6 +90,7 @@ def _cap_from_dict(data: dict[str, Any]) -> CapabilityDef:
         max_iterations=int(data.get("max_iterations", 20)),
         llm_features=list(data.get("llm_features", [])),
         availability_conditions=list(data.get("availability_conditions", [])),
+        preferred_score=str(data.get("preferred_score", "")),
     )
 
 
@@ -100,6 +106,7 @@ def save_user_capability(defn: CapabilityDef, user_caps_dir: Path) -> Path:
         "max_iterations": defn.max_iterations,
         "llm_features": defn.llm_features,
         "availability_conditions": defn.availability_conditions,
+        "preferred_score": defn.preferred_score,
         "tools": defn.tools,
         "mcp_servers": defn.mcp_servers,
         "system_prompt": defn.system_prompt,
@@ -135,6 +142,7 @@ def _upsert_capability(connection: sqlite3.Connection, defn: CapabilityDef, now:
         "max_iterations": defn.max_iterations,
         "llm_features": defn.llm_features,
         "availability_conditions": defn.availability_conditions,
+        "preferred_score": defn.preferred_score,
     })
     connection.execute(
         """
@@ -299,6 +307,7 @@ def get_executor(
             max_iterations=data.get("max_iterations", 20),
             llm_features=data.get("llm_features", []),
             availability_conditions=data.get("availability_conditions", []),
+            preferred_score=data.get("preferred_score", ""),
         )
 
     if defn is None:
@@ -314,6 +323,7 @@ def get_executor(
     cap.max_iterations = defn.max_iterations
     cap.llm_features = list(defn.llm_features)
     cap.availability_conditions = list(defn.availability_conditions)
+    cap.preferred_score = defn.preferred_score
     return cap
 
 

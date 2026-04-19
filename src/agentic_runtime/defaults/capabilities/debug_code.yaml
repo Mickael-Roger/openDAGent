@@ -1,4 +1,5 @@
 name: debug_code
+preferred_score: coding
 description: Diagnose and fix bugs in code using the opencode AI coding agent.
 risk_level: medium
 max_iterations: 12

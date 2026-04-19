@@ -1,4 +1,5 @@
 name: chat_response
+preferred_score: writing
 description: >
   Conversational response that guides the user toward a structured project plan.
   Drives the chat interface; every user message triggers one instance of this capability.
