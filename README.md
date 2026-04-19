@@ -190,6 +190,17 @@ Zhipu AI, Ollama, vLLM, …) and authentication methods, see
 A fully annotated config with every available option is in
 **[config.example.yaml](config.example.yaml)**.
 
+### Optional capabilities
+
+Some capabilities require additional setup:
+
+| Capability | Requirement | Setup guide |
+|---|---|---|
+| `browser_use` | Vision LLM + Playwright MCP | [docs/playwright-setup.md](docs/playwright-setup.md) |
+| `web_search` | Brave API key or native LLM search | Set `BRAVE_API_KEY` env var |
+| `generate_image` | Image generation model | Set `IMAGE_GEN_ENDPOINT` / `IMAGE_GEN_MODEL` / `IMAGE_GEN_API_KEY` |
+| `code` / `test_code` / `code_review` / `debug_code` | opencode binary | `npm install -g opencode-ai` |
+
 ### Start
 
 ```bash
