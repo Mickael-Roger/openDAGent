@@ -16,11 +16,12 @@ logger = logging.getLogger(__name__)
 
 # LLM features that a capability may require
 LLM_FEATURES = [
-    "vision",        # can process images in the prompt
-    "reasoning",     # extended thinking / chain-of-thought (o1, claude-thinking)
-    "json_mode",     # guaranteed structured JSON output
-    "long_context",  # 100k+ token context window
-    "code",          # specialised code generation
+    "vision",            # can process images in the prompt (multimodal input)
+    "reasoning",         # extended thinking / chain-of-thought (o1, claude-thinking)
+    "json_mode",         # guaranteed structured JSON output
+    "long_context",      # 100k+ token context window
+    "code",              # specialised code generation
+    "image_generation",  # can generate images (DALL-E, Stable Diffusion, etc.)
 ]
 
 RISK_LEVELS = ["low", "medium", "high", "critical"]
@@ -139,15 +140,43 @@ def _upsert_capability(connection: sqlite3.Connection, defn: CapabilityDef, now:
     )
 
 
+# ── LLM feature resolution ────────────────────────────────────────────────────
+
+def _supported_features(llm_config: dict[str, Any] | None) -> set[str]:
+    """
+    Return the set of all LLM features declared across all configured models.
+    Models declare features as: models: [{id: ..., features: [vision, ...]}]
+    """
+    if not llm_config:
+        return set()
+    features: set[str] = set()
+    for provider in llm_config.get("providers", []):
+        for model in provider.get("models", []):
+            features.update(model.get("features", []))
+    return features
+
+
+def _capability_is_available(defn: CapabilityDef, supported: set[str]) -> bool:
+    """
+    A capability is available if every feature it requires is present in the
+    supported set, OR if it has no llm_features requirements at all.
+    """
+    return all(f in supported for f in defn.llm_features)
+
+
 # ── load_and_register ─────────────────────────────────────────────────────────
 
 def load_and_register(
     connection: sqlite3.Connection,
     extra_dirs: list[Path] | None = None,
+    llm_config: dict[str, Any] | None = None,
 ) -> None:
     """
     Load capability YAML files from the bundled defaults dir and any extra dirs,
     upsert them into the capabilities DB table, and populate the in-memory registry.
+
+    Capabilities whose llm_features requirements are not met by any configured
+    LLM model are skipped (not registered).
 
     Later dirs override earlier ones (same capability name).
     """
@@ -162,12 +191,29 @@ def load_and_register(
     for d in dirs:
         merged.update(_load_yaml_dir(d))
 
+    supported = _supported_features(llm_config)
+
     now = utc_now_iso()
+    registered: dict[str, CapabilityDef] = {}
+    skipped: list[str] = []
+
     for defn in merged.values():
+        if not _capability_is_available(defn, supported):
+            skipped.append(
+                f"'{defn.name}' (requires: {defn.llm_features})"
+            )
+            continue
         _upsert_capability(connection, defn, now)
+        registered[defn.name] = defn
 
     connection.commit()
-    _REGISTRY = merged
+    _REGISTRY = registered
+
+    if skipped:
+        logger.info(
+            "Skipped %d capability/capabilities (LLM features not available): %s",
+            len(skipped), ", ".join(skipped),
+        )
     logger.info("Registered %d capability/capabilities.", len(_REGISTRY))
 
 

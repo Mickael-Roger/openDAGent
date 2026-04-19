@@ -44,6 +44,7 @@ def create_app(
     extra_capability_dirs: list[str] | None = None,
     user_caps_dir: str | None = None,
     mcp_config: dict[str, Any] | None = None,
+    llm_config: dict[str, Any] | None = None,
 ) -> Any:
     fastapi_module = import_module("fastapi")
     responses_module = import_module("fastapi.responses")
@@ -59,7 +60,7 @@ def create_app(
 
     conn = initialize_database(db_path)
     extra_dirs = [Path(d) for d in extra_capability_dirs] if extra_capability_dirs else None
-    load_and_register(conn, extra_dirs)
+    load_and_register(conn, extra_dirs, llm_config=llm_config)
     conn.close()
 
     _user_caps_dir: Path | None = Path(user_caps_dir) if user_caps_dir else None

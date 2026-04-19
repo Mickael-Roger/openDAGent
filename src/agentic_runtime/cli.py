@@ -72,7 +72,11 @@ def main(argv: list[str] | None = None) -> int:
 
     user_caps_dir = workdir / "config" / "capabilities"
     connection = initialize_database(db_path)
-    load_and_register(connection, [user_caps_dir] if user_caps_dir.exists() else None)
+    load_and_register(
+        connection,
+        [user_caps_dir] if user_caps_dir.exists() else None,
+        llm_config=config.llm,
+    )
     connection.close()
 
     if args.init_db_only:
@@ -134,6 +138,7 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
         extra_capability_dirs=extra_dirs,
         user_caps_dir=str(user_caps_dir),
         mcp_config=config.mcp,
+        llm_config=config.llm,
     )
     uvicorn = import_module("uvicorn")
     uvicorn.run(app, host=host, port=port)

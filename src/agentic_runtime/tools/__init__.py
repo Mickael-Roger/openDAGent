@@ -49,6 +49,8 @@ def _load_builtins() -> None:
     from .artifacts import ReadArtifact, WriteArtifact
     from .files import ReadFile, WriteFile
     from .runtime import CreateTask, AskUser
+    from .web import WebFetch, WebSearch
+    from .image import GenerateImage
 
     _register(
         PostMessage(),
@@ -58,6 +60,9 @@ def _load_builtins() -> None:
         WriteFile(),
         CreateTask(),
         AskUser(),
+        WebFetch(),
+        WebSearch(),
+        GenerateImage(),
     )
 
 
