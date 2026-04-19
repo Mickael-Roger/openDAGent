@@ -51,6 +51,7 @@
 
     // Track the latest message timestamp for polling
     let lastMessageTs = {{ (messages[-1].message_ts if messages else '') | tojson }};
+    let typingEl = null;
 
     // Configure marked
     marked.setOptions({ breaks: true, gfm: true });
@@ -60,6 +61,11 @@
         el.innerHTML = marked.parse(el.dataset.md);
         delete el.dataset.md;
     });
+
+    // Show typing indicator if the last message on load is from the user
+    {% if messages and messages[-1].author_type == 'user' %}
+    showTyping();
+    {% endif %}
 
     // Scroll to bottom on load
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -81,6 +87,7 @@
         inputEl.disabled = true;
 
         appendBubble('user', content);
+        showTyping();
 
         try {
             const res = await fetch(`/api/projects/${PROJECT_ID}/messages`, {
@@ -107,6 +114,7 @@
             const { messages } = await res.json();
             for (const msg of messages) {
                 if (msg.author_type !== 'user') {
+                    hideTyping();
                     appendBubble(msg.author_type, msg.content);
                     lastMessageTs = msg.message_ts;
                 }
@@ -115,6 +123,24 @@
     }
 
     setInterval(pollMessages, 2000);
+
+    function showTyping() {
+        if (typingEl) return;
+        const empty = messagesEl.querySelector('.chat-empty');
+        if (empty) empty.remove();
+        typingEl = document.createElement('div');
+        typingEl.className = 'chat-bubble chat-bubble-system chat-typing';
+        typingEl.innerHTML = '<span class="chat-author">openDAGent</span><span class="typing-dots"><span></span><span></span><span></span></span>';
+        messagesEl.appendChild(typingEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+        if (typingEl) {
+            typingEl.remove();
+            typingEl = null;
+        }
+    }
 
     function appendBubble(authorType, content) {
         const empty = messagesEl.querySelector('.chat-empty');
