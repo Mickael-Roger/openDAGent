@@ -50,19 +50,12 @@ a {
   margin-bottom: 28px;
 }
 
-.brand-mark {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: white;
-  font-weight: 800;
+.brand-logo {
+  width: 160px;
+  height: auto;
+  display: block;
 }
 
-.brand small,
 .subtitle,
 .empty-copy,
 .project-card p,

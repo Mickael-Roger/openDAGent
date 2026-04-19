@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openDAGent"
-version = "0.2.0"
+version = "0.2.1"
 description = "DAG artifact/task oriented for agentic AI workflows."
 requires-python = ">=3.11"
 dependencies = [
@@ -29,7 +29,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentic_runtime = ["templates/*.html", "static/*", "defaults/*.yaml", "defaults/capabilities/*.yaml"]
+agentic_runtime = ["templates/*.html", "static/*", "static/*.png", "defaults/*.yaml", "defaults/capabilities/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
