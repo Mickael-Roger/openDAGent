@@ -224,6 +224,22 @@ def _prompt(label: str, default: str = "") -> str:
     return value or default
 
 
+class _IndentedDumper(yaml.Dumper):
+    """PyYAML dumper that indents list items under their parent key."""
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:  # type: ignore[override]
+        return super().increase_indent(flow=flow, indentless=False)
+
+
+def _yaml_dump(data: Any) -> str:
+    return yaml.dump(
+        data,
+        Dumper=_IndentedDumper,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+
+
 def _add_provider_wizard(config_path: Path) -> int:
     import yaml
 
@@ -306,7 +322,7 @@ def _add_provider_wizard(config_path: Path) -> int:
     }
 
     print("\n--- Provider to add ---")
-    print(yaml.dump(provider, default_flow_style=False, allow_unicode=True).rstrip())
+    print(_yaml_dump(provider).rstrip())
     print("-----------------------")
 
     confirm = input("\nAdd to config? [Y/n]: ").strip().lower()
@@ -323,9 +339,6 @@ def _add_provider_wizard(config_path: Path) -> int:
         data["llm"]["default_model"] = models[0]["id"]
         print(f"  default_provider → {pid},  default_model → {models[0]['id']}")
 
-    config_path.write_text(
-        yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
+    config_path.write_text(_yaml_dump(data), encoding="utf-8")
     print(f"\nProvider '{pid}' added to {config_path}")
     return 0
