@@ -1,11 +1,60 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+# ── Retry schedule ────────────────────────────────────────────────────────────
+#
+# HTTP status codes that are transient and worth retrying indefinitely:
+#   429  Too Many Requests / quota exhausted
+#   500  Internal Server Error (transient backend fault)
+#   502  Bad Gateway
+#   503  Service Unavailable
+#   504  Gateway Timeout
+#
+# All other 4xx errors are permanent (bad request, auth failure, …) and are
+# re-raised immediately without retrying.
+#
+# The retry schedule in seconds (applied sequentially, then the last value
+# repeats forever):
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_RETRY_DELAYS = [10, 30, 120, 300, 600]  # 10s, 30s, 2m, 5m, 10m, 10m, …
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Return True if the exception is transient and the request should be retried."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_STATUS
+    # Network-level errors (connection refused, timeout, DNS failure, …)
+    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)):
+        return True
+    return False
+
+
+def _retry_delay(attempt: int, exc: Exception | None = None) -> float:
+    """
+    Return the number of seconds to wait before attempt number `attempt` (0-based).
+    If the response carries a Retry-After header, that value takes precedence.
+    """
+    if exc is not None:
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            retry_after = resp.headers.get("retry-after") or resp.headers.get("x-ratelimit-reset-requests")
+            if retry_after:
+                try:
+                    return max(float(retry_after), 1.0)
+                except ValueError:
+                    pass
+    idx = min(attempt, len(_RETRY_DELAYS) - 1)
+    return float(_RETRY_DELAYS[idx])
 
 
 # ── Response types ────────────────────────────────────────────────────────────
@@ -181,9 +230,22 @@ def _openai_chat(
         payload["tools"] = _openai_tools(tools)
         payload["tool_choice"] = "auto"
 
-    with httpx.Client(timeout=120.0) as client:
-        resp = client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
-        resp.raise_for_status()
+    for attempt in range(10_000):  # effectively infinite
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                resp = client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
+                resp.raise_for_status()
+            break
+        except Exception as exc:
+            if not _is_retryable(exc):
+                raise
+            delay = _retry_delay(attempt, exc)
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.warning(
+                "OpenAI-compatible request failed (attempt %d, status=%s): %s — retrying in %.0fs",
+                attempt + 1, status, exc, delay,
+            )
+            time.sleep(delay)
 
     data = resp.json()
     message = data["choices"][0]["message"]
@@ -224,9 +286,22 @@ def _anthropic_chat(
     if tools:
         payload["tools"] = _anthropic_tools(tools)
 
-    with httpx.Client(timeout=120.0) as client:
-        resp = client.post(f"{endpoint}/v1/messages", headers=headers, json=payload)
-        resp.raise_for_status()
+    for attempt in range(10_000):  # effectively infinite
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                resp = client.post(f"{endpoint}/v1/messages", headers=headers, json=payload)
+                resp.raise_for_status()
+            break
+        except Exception as exc:
+            if not _is_retryable(exc):
+                raise
+            delay = _retry_delay(attempt, exc)
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.warning(
+                "Anthropic request failed (attempt %d, status=%s): %s — retrying in %.0fs",
+                attempt + 1, status, exc, delay,
+            )
+            time.sleep(delay)
 
     data = resp.json()
     content: str | None = None
