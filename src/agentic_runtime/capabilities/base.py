@@ -68,7 +68,7 @@ class BaseCapability:
         mcp_schemas: list[dict[str, Any]],
         mcp_dispatch: dict[str, Any],
     ) -> None:
-        provider, model = self._resolve_provider(llm_config)
+        provider, model, max_tokens = self._resolve_provider(llm_config)
         all_schemas = [t.schema() for t in native_tools] + mcp_schemas
 
         messages = self._build_initial_messages(conn, task)
@@ -80,6 +80,7 @@ class BaseCapability:
                 model,
                 system=self.system_prompt,
                 tools=all_schemas if all_schemas else None,
+                max_tokens=max_tokens,
             )
 
             if response.is_final:
@@ -123,9 +124,9 @@ class BaseCapability:
 
     def _resolve_provider(
         self, llm_config: dict[str, Any]
-    ) -> tuple[dict[str, Any], str]:
+    ) -> tuple[dict[str, Any], str, int]:
         """
-        Select the best (provider, model_id) pair for this capability.
+        Select the best (provider, model_id, max_tokens) triple for this capability.
 
         If `preferred_score` is set, iterate over all configured models, filter
         to those that satisfy `llm_features` requirements, and pick the one with
@@ -134,7 +135,11 @@ class BaseCapability:
           - preferred_score is empty
           - no model declares a score for that dimension
           - no model satisfies the llm_features requirements
+
+        max_tokens is read from the model's `max_tokens` config field; defaults
+        to 65535 when not specified.
         """
+        _DEFAULT_MAX_TOKENS = 65535
         providers_list: list[dict[str, Any]] = llm_config.get("providers", [])
 
         if self.preferred_score:
@@ -142,6 +147,7 @@ class BaseCapability:
             best_score: int | float = -1
             best_provider: dict[str, Any] | None = None
             best_model_id: str | None = None
+            best_model_dict: dict[str, Any] = {}
 
             for provider in providers_list:
                 for model in provider.get("models", []):
@@ -153,21 +159,28 @@ class BaseCapability:
                         best_score = score
                         best_provider = provider
                         best_model_id = model["id"]
+                        best_model_dict = model
 
             if best_provider is not None and best_model_id is not None:
+                max_tokens = int(best_model_dict.get("max_tokens", _DEFAULT_MAX_TOKENS))
                 logger.debug(
-                    "Capability '%s': selected model '%s/%s' (score %s=%s).",
+                    "Capability '%s': selected model '%s/%s' (score %s=%s, max_tokens=%d).",
                     self.name, best_provider.get("id"), best_model_id,
-                    self.preferred_score, best_score,
+                    self.preferred_score, best_score, max_tokens,
                 )
-                return best_provider, best_model_id
+                return best_provider, best_model_id, max_tokens
 
         # Default fallback
         provider_id = str(llm_config.get("default_provider", "openai"))
         model_id = str(llm_config.get("default_model", "gpt-4.1"))
         providers_by_id = {p["id"]: p for p in providers_list}
         provider = providers_by_id.get(provider_id) or next(iter(providers_by_id.values()), {})
-        return provider, model_id
+        model_dict = next(
+            (m for m in provider.get("models", []) if m.get("id") == model_id),
+            {},
+        )
+        max_tokens = int(model_dict.get("max_tokens", _DEFAULT_MAX_TOKENS))
+        return provider, model_id, max_tokens
 
     def _build_initial_messages(
         self,

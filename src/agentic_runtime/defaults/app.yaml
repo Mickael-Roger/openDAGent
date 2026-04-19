@@ -44,6 +44,7 @@ llm:
           features: [vision, json_mode, long_context, code]
           cost: 6
           speed: 7
+          # max_tokens: 65535   # override per-model token budget (default: 65535)
           scores:
             reasoning: 8
             coding: 8

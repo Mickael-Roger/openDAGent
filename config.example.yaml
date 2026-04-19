@@ -89,6 +89,12 @@ inputs:
 #   image_generation — can generate images via a diffusion-compatible API
 #   native_web_search — built-in web search (no Brave API key needed)
 #
+# Per-model token budget (optional):
+#   max_tokens: <integer>   Maximum tokens the model may generate per call.
+#                           Default: 65535. Lower this for cost-sensitive models
+#                           or models with hard API limits (e.g. gpt-4.1-mini
+#                           caps at 16384 on some plans).
+#
 # Model scores (optional):
 #   Each model can declare a `scores` map of dimension → integer (1–10).
 #   When a capability declares `preferred_score: <dimension>`, openDAGent
@@ -114,8 +120,9 @@ llm:
         - id: gpt-4.1
           role: strong_reasoning
           features: [vision, json_mode, long_context, code]
-          cost: 6    # 1 (cheapest) – 10 (most expensive), indicative only
-          speed: 7   # 1 (slowest)  – 10 (fastest),        indicative only
+          cost: 6       # 1 (cheapest) – 10 (most expensive), indicative only
+          speed: 7      # 1 (slowest)  – 10 (fastest),        indicative only
+          max_tokens: 65535
           scores:
             reasoning: 8
             coding: 8
@@ -125,6 +132,7 @@ llm:
           features: [vision, json_mode, code]
           cost: 2
           speed: 9
+          max_tokens: 16384   # gpt-4.1-mini has a lower output limit
           scores:
             reasoning: 5
             coding: 5
