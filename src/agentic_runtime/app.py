@@ -177,6 +177,21 @@ def create_app(
             connection.close()
         return JSONResponse(message)
 
+    @app.delete("/api/projects/{project_id}")
+    async def api_delete_project(project_id: str) -> Any:
+        connection = open_connection()
+        try:
+            row = connection.execute(
+                "SELECT 1 FROM projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Project not found")
+            connection.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
+            connection.commit()
+        finally:
+            connection.close()
+        return JSONResponse({"deleted": project_id})
+
     @app.get("/api/artifacts/{artifact_id}")
     async def api_get_artifact_meta(artifact_id: str) -> Any:
         connection = open_connection()

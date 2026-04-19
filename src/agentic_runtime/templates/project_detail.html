@@ -7,8 +7,9 @@
         <h1>{{ project.title }}</h1>
         <p class="subtitle">{{ project.slug }} · Runtime state: <span class="pill pill-{{ project.state }}">{{ project.state }}</span></p>
     </div>
-    <div class="hero-actions">
-        <a class="ghost-link" href="{{ url_for('dashboard') }}">Back to projects</a>
+    <div class="hero-actions" style="display:flex;gap:10px;align-items:center">
+        <a class="btn-ghost" href="{{ url_for('dashboard') }}">Back to projects</a>
+        <button class="btn-danger" id="delete-project-btn">Delete project</button>
     </div>
 </section>
 
@@ -88,6 +89,17 @@
 <script id="graph-data" type="application/json">{{ graph_json|safe }}</script>
 <script src="{{ url_for('static', path='/graph.js') }}"></script>
 <script src="{{ url_for('static', path='/artifact-viewer.js') }}"></script>
+<script>
+    document.getElementById('delete-project-btn').addEventListener('click', async () => {
+        if (!confirm('Delete this project and all its tasks, artifacts, and messages? This cannot be undone.')) return;
+        const res = await fetch('/api/projects/{{ project.project_id }}', { method: 'DELETE' });
+        if (res.ok) {
+            window.location.href = '/';
+        } else {
+            alert('Failed to delete project.');
+        }
+    });
+</script>
 <script>
     document.querySelectorAll('.artifact-view-btn').forEach(btn => {
         btn.addEventListener('click', () => openArtifactModal(btn.dataset.artifactId));

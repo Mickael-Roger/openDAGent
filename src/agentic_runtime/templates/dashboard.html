@@ -32,21 +32,26 @@
     {% if projects %}
     <div class="project-grid">
         {% for project in projects %}
-        <a class="project-card" href="{{ url_for('project_chat', project_id=project.project_id) }}">
-            <div class="project-card-top">
-                <div>
-                    <h3>{{ project.title }}</h3>
-                    <p>{{ project.slug }}</p>
+        <div class="project-card">
+            <a class="project-card-link" href="{{ url_for('project_chat', project_id=project.project_id) }}">
+                <div class="project-card-top">
+                    <div>
+                        <h3>{{ project.title }}</h3>
+                        <p>{{ project.slug }}</p>
+                    </div>
+                    <span class="pill pill-{{ project.state }}">{{ project.state }}</span>
                 </div>
-                <span class="pill pill-{{ project.state }}">{{ project.state }}</span>
+                <div class="mini-stats">
+                    <span>{{ project.goal_count }} goals</span>
+                    <span>{{ project.task_count }} tasks</span>
+                    <span>{{ project.done_task_count }} done</span>
+                    <span>{{ project.artifact_count }} artifacts</span>
+                </div>
+            </a>
+            <div class="project-card-actions">
+                <button class="btn-danger btn-sm delete-project-btn" data-project-id="{{ project.project_id }}" data-project-title="{{ project.title }}">Delete</button>
             </div>
-            <div class="mini-stats">
-                <span>{{ project.goal_count }} goals</span>
-                <span>{{ project.task_count }} tasks</span>
-                <span>{{ project.done_task_count }} done</span>
-                <span>{{ project.artifact_count }} artifacts</span>
-            </div>
-        </a>
+        </div>
         {% endfor %}
     </div>
     {% else %}
@@ -56,4 +61,20 @@
     </div>
     {% endif %}
 </section>
+<script>
+    document.querySelectorAll('.delete-project-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const title = btn.dataset.projectTitle;
+            if (!confirm(`Delete "${title}" and all its tasks, artifacts, and messages? This cannot be undone.`)) return;
+            const res = await fetch(`/api/projects/${btn.dataset.projectId}`, { method: 'DELETE' });
+            if (res.ok) {
+                btn.closest('.project-card').remove();
+            } else {
+                alert('Failed to delete project.');
+            }
+        });
+    });
+</script>
 {% endblock %}

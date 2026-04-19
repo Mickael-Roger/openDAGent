@@ -44,9 +44,9 @@ def create_chat_response_task(
         """
         INSERT INTO tasks
             (task_id, goal_id, project_id, capability_name, title,
-             state, priority, retry_count, allowed_paths_json, created_at, updated_at)
+             task_kind, state, priority, retry_count, allowed_paths_json, created_at, updated_at)
         VALUES (?, ?, ?, 'chat_response', 'Generate chat response',
-                'created', 50, 0, '[]', ?, ?)
+                'internal', 'created', 50, 0, '[]', ?, ?)
         """,
         (task_id, goal_id, project_id, now, now),
     )

@@ -9,6 +9,16 @@ PRAGMAS = (
     "PRAGMA synchronous = NORMAL;",
 )
 
+# Idempotent schema migrations for columns added after initial release.
+# Each entry is (check_sql, migrate_sql): check_sql returns a row if the
+# migration is already applied; if it returns nothing, migrate_sql is run.
+MIGRATIONS = [
+    (
+        "SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'task_kind'",
+        "ALTER TABLE tasks ADD COLUMN task_kind TEXT NOT NULL DEFAULT 'project'",
+    ),
+]
+
 SCHEMA_STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS projects (
@@ -99,6 +109,7 @@ SCHEMA_STATEMENTS = (
         model_pool_hint TEXT,
         max_tokens INTEGER,
         max_cost_usd REAL,
+        task_kind TEXT NOT NULL DEFAULT 'project',
         retry_count INTEGER NOT NULL DEFAULT 0,
         max_retries INTEGER NOT NULL DEFAULT 2,
         lease_owner_worker_id TEXT,
@@ -317,8 +328,17 @@ def initialize_database(db_path: str | Path) -> sqlite3.Connection:
         for statement in SCHEMA_STATEMENTS:
             connection.execute(statement)
         connection.commit()
+        _run_migrations(connection)
     except Exception:
         connection.rollback()
         connection.close()
         raise
     return connection
+
+
+def _run_migrations(connection: sqlite3.Connection) -> None:
+    for check_sql, migrate_sql in MIGRATIONS:
+        already_applied = connection.execute(check_sql).fetchone()
+        if not already_applied:
+            connection.execute(migrate_sql)
+    connection.commit()

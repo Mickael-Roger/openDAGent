@@ -37,7 +37,7 @@ def get_dashboard_data(connection: sqlite3.Connection) -> dict[str, Any]:
 
     task_state_counts = Counter(
         row[0]
-        for row in connection.execute("SELECT state FROM tasks").fetchall()
+        for row in connection.execute("SELECT state FROM tasks WHERE task_kind = 'project'").fetchall()
     )
     project_state_counts = Counter(
         row[0]
@@ -81,12 +81,14 @@ def get_project_detail_data(
                 goals.title AS goal_title,
                 tasks.title,
                 tasks.capability_name,
+                tasks.task_kind,
                 tasks.state,
                 tasks.priority,
                 tasks.updated_at
             FROM tasks
             JOIN goals ON goals.goal_id = tasks.goal_id
             WHERE tasks.project_id = ?
+              AND tasks.task_kind = 'project'
             ORDER BY tasks.priority DESC, tasks.created_at ASC
             """,
             (project_id,),
@@ -135,6 +137,7 @@ def get_project_graph_data(
         FROM tasks
         JOIN goals ON goals.goal_id = tasks.goal_id
         WHERE tasks.project_id = ?
+          AND tasks.task_kind = 'project'
         ORDER BY tasks.priority DESC, tasks.created_at ASC
         """,
         (project_id,),
