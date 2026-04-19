@@ -12,7 +12,9 @@ class CreateTask(Tool):
     name = "create_task"
     description = (
         "Create a new task in the current project for a given capability. "
-        "Use this to schedule work that should run as a separate execution unit."
+        "Declare required_artifacts to block the task until those artifacts exist, "
+        "and produced_artifacts to register the artifacts this task will write. "
+        "These declarations form the DAG that drives automatic scheduling."
     )
     parameters = {
         "type": "object",
@@ -33,6 +35,38 @@ class CreateTask(Tool):
                 "type": "integer",
                 "description": "Task priority 0–100. Default 50.",
             },
+            "required_artifacts": {
+                "type": "array",
+                "description": (
+                    "Artifacts that must exist before this task can run. "
+                    "Each item: {\"artifact_key\": \"<key>\", \"required_status\": \"active\"|\"approved\"}."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "artifact_key": {"type": "string"},
+                        "required_status": {"type": "string", "enum": ["active", "approved"]},
+                    },
+                    "required": ["artifact_key", "required_status"],
+                },
+            },
+            "produced_artifacts": {
+                "type": "array",
+                "description": (
+                    "Artifacts this task will write via write_artifact. "
+                    "Each item: {\"artifact_key\": \"<key>\", \"artifact_type\": \"structured\"|\"file\", "
+                    "\"delivery_mode\": \"value\"|\"file\"}."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "artifact_key": {"type": "string"},
+                        "artifact_type": {"type": "string", "enum": ["structured", "file"]},
+                        "delivery_mode": {"type": "string", "enum": ["value", "file"]},
+                    },
+                    "required": ["artifact_key", "artifact_type", "delivery_mode"],
+                },
+            },
         },
         "required": ["capability_name", "title"],
     }
@@ -46,6 +80,8 @@ class CreateTask(Tool):
         title: str,
         description: str = "",
         priority: int = 50,
+        required_artifacts: list[dict[str, Any]] | None = None,
+        produced_artifacts: list[dict[str, Any]] | None = None,
         **_: Any,
     ) -> str:
         # Verify the capability exists
@@ -77,8 +113,42 @@ class CreateTask(Tool):
                 now,
             ),
         )
+
+        for req in required_artifacts or []:
+            conn.execute(
+                """
+                INSERT INTO task_required_artifacts
+                    (requirement_id, task_id, artifact_key, required_status, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (new_id("req"), task_id, req["artifact_key"], req.get("required_status", "active"), now),
+            )
+
+        for prod in produced_artifacts or []:
+            conn.execute(
+                """
+                INSERT INTO task_produced_artifacts
+                    (production_id, task_id, artifact_key, artifact_type, delivery_mode, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_id("prod"),
+                    task_id,
+                    prod["artifact_key"],
+                    prod.get("artifact_type", "structured"),
+                    prod.get("delivery_mode", "value"),
+                    now,
+                ),
+            )
+
         conn.commit()
-        return f"Task '{title}' created (id={task_id})."
+
+        parts = [f"Task '{title}' created (id={task_id})"]
+        if required_artifacts:
+            parts.append(f"requires: {[r['artifact_key'] for r in required_artifacts]}")
+        if produced_artifacts:
+            parts.append(f"produces: {[p['artifact_key'] for p in produced_artifacts]}")
+        return ", ".join(parts) + "."
 
 
 class AskUser(Tool):
