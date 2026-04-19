@@ -182,6 +182,18 @@ def _configured_mcp_ids(mcp_config: dict[str, Any] | None) -> set[str]:
     return {s.get("id", "") for s in mcp_config.get("servers", []) if s.get("id")}
 
 
+def _check_condition(cond: str, supported: set[str], mcp_ids: set[str]) -> bool:
+    if cond.startswith("env:"):
+        return bool(os.environ.get(cond[4:], "").strip())
+    if cond.startswith("feature:"):
+        return cond[8:] in supported
+    if cond.startswith("binary:"):
+        return shutil.which(cond[7:]) is not None
+    if cond.startswith("mcp:"):
+        return cond[4:] in mcp_ids
+    return False
+
+
 def _capability_is_available(
     defn: CapabilityDef,
     supported: set[str],
@@ -196,21 +208,34 @@ def _capability_is_available(
        - "binary:BIN"   → binary BIN is present in PATH
        - "mcp:ID"       → MCP server with that ID is declared in config
     """
+    ids = mcp_ids or set()
     if not all(f in supported for f in defn.llm_features):
         return False
     if defn.availability_conditions:
-        ids = mcp_ids or set()
-        for cond in defn.availability_conditions:
-            if cond.startswith("env:") and os.environ.get(cond[4:], "").strip():
-                return True
-            if cond.startswith("feature:") and cond[8:] in supported:
-                return True
-            if cond.startswith("binary:") and shutil.which(cond[7:]) is not None:
-                return True
-            if cond.startswith("mcp:") and cond[4:] in ids:
-                return True
-        return False
+        return any(_check_condition(c, supported, ids) for c in defn.availability_conditions)
     return True
+
+
+def _skip_reason(defn: CapabilityDef, supported: set[str], mcp_ids: set[str]) -> str:
+    """Return a precise human-readable explanation of why a capability was skipped."""
+    missing = [f for f in defn.llm_features if f not in supported]
+    if missing:
+        return f"missing LLM features: {missing}"
+    if defn.availability_conditions:
+        detail: list[str] = []
+        for cond in defn.availability_conditions:
+            if cond.startswith("env:"):
+                detail.append(f"{cond} (env var not set)")
+            elif cond.startswith("feature:"):
+                detail.append(f"{cond} (not in any model)")
+            elif cond.startswith("binary:"):
+                detail.append(f"{cond} (binary not in PATH)")
+            elif cond.startswith("mcp:"):
+                detail.append(f"{cond} (server not in mcp.servers)")
+            else:
+                detail.append(f"{cond} (unrecognised condition)")
+        return "no condition met: " + ", ".join(detail)
+    return "unknown reason"
 
 
 # ── load_and_register ─────────────────────────────────────────────────────────
@@ -250,11 +275,8 @@ def load_and_register(
 
     for defn in merged.values():
         if not _capability_is_available(defn, supported, mcp_ids):
-            reason = (
-                f"llm_features={defn.llm_features}" if defn.llm_features else
-                f"conditions={defn.availability_conditions}"
-            )
-            skipped.append(f"'{defn.name}' ({reason})")
+            reason = _skip_reason(defn, supported, mcp_ids)
+            skipped.append(f"'{defn.name}' — {reason}")
             continue
         _upsert_capability(connection, defn, now)
         registered[defn.name] = defn
@@ -264,8 +286,8 @@ def load_and_register(
 
     if skipped:
         logger.info(
-            "Skipped %d capability/capabilities (LLM features not available): %s",
-            len(skipped), ", ".join(skipped),
+            "Skipped %d capability/capabilities (requirements not met):\n  %s",
+            len(skipped), "\n  ".join(skipped),
         )
     logger.info("Registered %d capability/capabilities.", len(_REGISTRY))
 
