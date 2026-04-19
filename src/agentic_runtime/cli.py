@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from importlib import import_module
 from pathlib import Path
 
@@ -115,6 +116,7 @@ def _effective_web_enabled(config: AppConfig, override: bool | None) -> bool:
 
 
 def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
+    import atexit
     import logging
 
     from .app import create_app
@@ -125,11 +127,33 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
+    log = logging.getLogger(__name__)
 
     app_config = {"llm": config.llm, "mcp": config.mcp}
     user_caps_dir = config.runtime_workdir() / "config" / "capabilities"
     extra_dirs = [str(user_caps_dir)] if user_caps_dir.exists() else None
 
+    # ── opencode availability check ──────────────────────────────────────────
+    opencode_cfg = config.opencode
+    opencode_enabled = opencode_cfg.get("enabled", True)
+    opencode_available = shutil.which("opencode") is not None
+
+    if not opencode_available:
+        log.warning(
+            "opencode binary not found in PATH — coding capabilities (code, test_code, "
+            "code_review, debug_code) will be hidden. Install opencode to enable them: "
+            "https://opencode.ai/docs"
+        )
+    elif opencode_enabled:
+        from .opencode.server import init_server, shutdown_server
+        oc_port = int(opencode_cfg.get("port", 9180))
+        oc_model_hint = opencode_cfg.get("model_hint") or None
+        init_server(config.llm, port=oc_port, model_hint=oc_model_hint)
+        atexit.register(shutdown_server)
+    else:
+        log.info("opencode is installed but disabled in config (opencode.enabled: false).")
+
+    # ── Start background threads ─────────────────────────────────────────────
     start_ingress_thread(str(db_path))
     start_worker_thread(str(db_path), app_config)
 

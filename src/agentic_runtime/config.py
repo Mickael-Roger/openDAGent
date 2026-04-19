@@ -52,6 +52,10 @@ class AppConfig:
     def mcp(self) -> dict[str, Any]:
         return self.data.get("mcp", {"servers": []})
 
+    @property
+    def opencode(self) -> dict[str, Any]:
+        return self.data.get("opencode", {})
+
     def runtime_workdir(self) -> Path:
         return self.resolve_path(self.runtime.get("workdir", "."), base=self.base_dir)
 

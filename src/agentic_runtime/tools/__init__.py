@@ -51,6 +51,7 @@ def _load_builtins() -> None:
     from .runtime import CreateTask, AskUser
     from .web import WebFetch, WebSearch
     from .image import GenerateImage
+    from .opencode_tool import OpencodeTool
 
     _register(
         PostMessage(),
@@ -63,6 +64,7 @@ def _load_builtins() -> None:
         WebFetch(),
         WebSearch(),
         GenerateImage(),
+        OpencodeTool(),
     )
 
 

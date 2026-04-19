@@ -96,6 +96,16 @@ scheduler:
 approvals:
   default_required_for_high_risk: true
 
+opencode:
+  # Set enabled: false to prevent openDAGent from starting opencode serve even if the
+  # opencode binary is present in PATH.
+  enabled: true
+  # Port for the opencode serve API (must not conflict with other services).
+  port: 9180
+  # Optional: force a specific model for coding tasks (e.g. "anthropic/claude-opus-4-5").
+  # If omitted, the first code-capable model in the llm section is used automatically.
+  # model_hint: anthropic/claude-opus-4-5
+
 mcp:
   servers: []
   # Example stdio server:

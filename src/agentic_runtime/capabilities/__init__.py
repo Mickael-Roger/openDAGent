@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -182,6 +183,8 @@ def _capability_is_available(defn: CapabilityDef, supported: set[str]) -> bool:
                 return True
             if cond.startswith("feature:") and cond[8:] in supported:
                 return True
+            if cond.startswith("binary:") and shutil.which(cond[7:]) is not None:
+                return True
         return False
     return True
 
@@ -221,9 +224,11 @@ def load_and_register(
 
     for defn in merged.values():
         if not _capability_is_available(defn, supported):
-            skipped.append(
-                f"'{defn.name}' (requires: {defn.llm_features})"
+            reason = (
+                f"llm_features={defn.llm_features}" if defn.llm_features else
+                f"conditions={defn.availability_conditions}"
             )
+            skipped.append(f"'{defn.name}' ({reason})")
             continue
         _upsert_capability(connection, defn, now)
         registered[defn.name] = defn

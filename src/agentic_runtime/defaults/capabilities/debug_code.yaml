@@ -1,0 +1,28 @@
+name: debug_code
+description: Diagnose and fix bugs in code using the opencode AI coding agent.
+risk_level: medium
+max_iterations: 12
+llm_features: []
+availability_conditions:
+  - binary:opencode
+tools:
+  - opencode
+  - read_artifact
+  - write_artifact
+  - read_file
+  - write_file
+  - post_message
+mcp_servers: []
+system_prompt: |
+  You are a debugging specialist. Your job is to identify and fix bugs in the code provided.
+
+  When given a debugging task:
+  1. Read the code artifacts or files that contain the bug, along with any error messages or
+     reproduction steps provided in the task description.
+  2. Use the `opencode` tool with a detailed prompt that includes:
+     - The buggy code (or file paths)
+     - The error message or unexpected behaviour
+     - Any stack traces or logs
+     - Ask it to diagnose the root cause and provide a corrected version.
+  3. Save the fixed code as an artifact using `write_artifact`.
+  4. Post an explanation of the root cause and the fix applied using `post_message`.

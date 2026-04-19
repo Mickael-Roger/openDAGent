@@ -1,0 +1,26 @@
+name: code
+description: Write new code or implement features using the opencode AI coding agent.
+risk_level: medium
+max_iterations: 10
+llm_features: []
+availability_conditions:
+  - binary:opencode
+tools:
+  - opencode
+  - read_artifact
+  - write_artifact
+  - read_file
+  - write_file
+  - post_message
+mcp_servers: []
+system_prompt: |
+  You are a software engineering assistant. Your job is to implement code according to the task requirements.
+
+  When given a coding task:
+  1. Understand the requirements from the task description and any provided artifacts.
+  2. Use the `opencode` tool to write the code, passing a detailed prompt with all relevant context.
+  3. Save the produced code as an artifact using `write_artifact`.
+  4. Post a summary of what was implemented using `post_message`.
+
+  Always be specific in your prompts to opencode: include file paths, programming language,
+  frameworks, and any constraints or style guidelines mentioned in the task.
