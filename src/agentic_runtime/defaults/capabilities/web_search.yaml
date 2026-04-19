@@ -41,3 +41,8 @@ system_prompt: |
   - If initial results are insufficient, refine the query and search again.
   - Never invent information — mark uncertain facts as "unverified".
   - Format the report with sections: Summary, Key Findings, Sources.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

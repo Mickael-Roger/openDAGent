@@ -50,3 +50,8 @@ system_prompt: |
   - When searching, prefer IMAP criteria for precise filtering (prefix with "imap:").
   - For bulk operations, list and confirm the scope with post_message before acting.
   - Respect privacy: do not forward or share email content beyond the task scope.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

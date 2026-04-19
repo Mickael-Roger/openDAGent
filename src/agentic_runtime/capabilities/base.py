@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from .. import llm as llm_mod
@@ -12,6 +13,25 @@ from ..time import utc_now_iso
 logger = logging.getLogger(__name__)
 
 _MAX_ITERATIONS_DEFAULT = 20
+
+# ── Artifact contract injected into the system prompt ─────────────────────────
+
+_ARTIFACT_CONTRACT_HEADER = """
+
+## REQUIRED — Artifact Production Contract
+
+This task has declared the artifacts it MUST produce. Downstream tasks in the
+project DAG are BLOCKED until every listed artifact exists with the required
+status. **The task is NOT complete until all artifacts below have been written.**
+"""
+
+_ARTIFACT_REQUIRED_HEADER = """
+
+## Available Input Artifacts
+
+This task depends on artifacts produced by upstream tasks. Use `read_artifact`
+with the exact key to retrieve them:
+"""
 
 
 class BaseCapability:
@@ -46,6 +66,9 @@ class BaseCapability:
         llm_config: dict[str, Any],
         mcp_config: dict[str, Any] | None = None,
     ) -> None:
+        # Ensure the task has a workspace directory
+        self._ensure_workspace(conn, task)
+
         native_tools = self._resolve_native_tools()
         mcp_schemas: list[dict[str, Any]] = []
         mcp_dispatch: dict[str, Any] = {}
@@ -75,6 +98,7 @@ class BaseCapability:
         all_schemas = [t.schema() for t in native_tools] + mcp_schemas
 
         messages = self._build_initial_messages(conn, task)
+        system_prompt = self._build_system_prompt(conn, task)
 
         total_prompt_tokens = 0
         total_completion_tokens = 0
@@ -84,7 +108,7 @@ class BaseCapability:
                 messages,
                 provider,
                 model,
-                system=self.system_prompt,
+                system=system_prompt,
                 tools=all_schemas if all_schemas else None,
                 max_tokens=max_tokens,
             )
@@ -311,3 +335,95 @@ class BaseCapability:
                 return f"Error calling MCP tool '{tc.name}': {exc}"
 
         return f"Error: unknown tool '{tc.name}'."
+
+    # ── Artifact contract injection ──────────────────────────────────────────
+
+    def _build_system_prompt(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+    ) -> str:
+        """Augment the capability system prompt with task-specific artifact contract.
+
+        Queries the task's declared required_artifacts and produced_artifacts and
+        appends clear instructions so the LLM knows *exactly* which artifact keys
+        it must read and write.
+        """
+        extra_sections: list[str] = []
+
+        # Required (input) artifacts
+        required_rows = conn.execute(
+            "SELECT artifact_key, required_status FROM task_required_artifacts WHERE task_id = ?",
+            (task["task_id"],),
+        ).fetchall()
+        if required_rows:
+            lines = [_ARTIFACT_REQUIRED_HEADER]
+            for row in required_rows:
+                lines.append(f'- `read_artifact(artifact_key="{row["artifact_key"]}")` (expected status: {row["required_status"]})')
+            extra_sections.append("\n".join(lines))
+
+        # Produced (output) artifacts — the MANDATORY contract
+        produced_rows = conn.execute(
+            """
+            SELECT artifact_key, artifact_type, delivery_mode
+            FROM task_produced_artifacts
+            WHERE task_id = ?
+            """,
+            (task["task_id"],),
+        ).fetchall()
+        if produced_rows:
+            lines = [_ARTIFACT_CONTRACT_HEADER]
+            for row in produced_rows:
+                lines.append(
+                    f'- `write_artifact(artifact_key="{row["artifact_key"]}", ...)` '
+                    f'— type: {row["artifact_type"]}, delivery: {row["delivery_mode"]}'
+                )
+            lines.append("")
+            lines.append(
+                "Call `write_artifact` with the **exact artifact_key** listed above. "
+                "Do NOT invent different keys. If you skip an artifact, the project DAG stalls."
+            )
+            extra_sections.append("\n".join(lines))
+
+        if not extra_sections:
+            return self.system_prompt
+
+        return self.system_prompt.rstrip() + "\n" + "\n".join(extra_sections) + "\n"
+
+    # ── Workspace directory management ───────────────────────────────────────
+
+    def _ensure_workspace(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+    ) -> None:
+        """Create the task workspace directory if it doesn't exist yet.
+
+        Directory structure:  <db_dir>/../data/<project_id>/<task_id>/
+        Sets task["workspace_path"] so tools (read_file, write_file) can use it.
+        """
+        if task.get("workspace_path"):
+            # Already set (e.g. from a previous attempt)
+            Path(task["workspace_path"]).mkdir(parents=True, exist_ok=True)
+            return
+
+        # Derive the data root from the DB path stored on the connection
+        # The DB lives at <workdir>/runtime/runtime.db; data goes in <workdir>/data/
+        db_path = conn.execute("PRAGMA database_list").fetchone()[2]
+        if db_path:
+            data_root = Path(db_path).resolve().parent.parent / "data"
+        else:
+            data_root = Path.cwd() / "data"
+
+        workspace = data_root / task["project_id"] / task["task_id"]
+        workspace.mkdir(parents=True, exist_ok=True)
+        workspace_str = str(workspace)
+
+        # Persist so the workspace survives restarts
+        conn.execute(
+            "UPDATE tasks SET workspace_path = ?, updated_at = ? WHERE task_id = ?",
+            (workspace_str, utc_now_iso(), task["task_id"]),
+        )
+        conn.commit()
+        task["workspace_path"] = workspace_str
+        logger.debug("Task %s workspace: %s", task["task_id"], workspace_str)

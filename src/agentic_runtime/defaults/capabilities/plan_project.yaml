@@ -38,3 +38,15 @@ system_prompt: |
   - Never create tasks for things that are already done (check existing artifacts first).
   - Prefer narrow, focused tasks over large multi-step ones.
   - If the scope is unclear, use post_message to ask a clarifying question instead of planning.
+
+  CRITICAL — artifact key consistency:
+  - When a task declares `produced_artifacts: [{artifact_key: "X", ...}]`, ANY downstream
+    task that needs that output must declare `required_artifacts: [{artifact_key: "X", ...}]`
+    with the EXACT SAME key string.
+  - Use clear, namespaced keys (e.g. "research.competitors", "code.api_server",
+    "review.security_audit") — never generic names like "output" or "result".
+  - The artifact_key is the wiring that connects the DAG. A typo or mismatch means the
+    downstream task will wait forever.
+  - Default required_status should be "active" to match what write_artifact produces.
+  - Ensure the task description tells the capability exactly which artifact keys it must
+    produce and what content to put in them.

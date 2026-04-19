@@ -31,3 +31,8 @@ system_prompt: |
   - For text in images: transcribe it faithfully (OCR-style).
   - For diagrams: describe the structure and relationships.
   - If an image URL fails to load, note the error and continue.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

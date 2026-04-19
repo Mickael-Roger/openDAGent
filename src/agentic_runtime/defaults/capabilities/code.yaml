@@ -25,3 +25,8 @@ system_prompt: |
 
   Always be specific in your prompts to opencode: include file paths, programming language,
   frameworks, and any constraints or style guidelines mentioned in the task.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

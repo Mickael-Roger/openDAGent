@@ -26,3 +26,8 @@ system_prompt: |
   4. Post a summary of the tests written (what is covered, how to run them) using `post_message`.
 
   Aim for tests that cover happy paths, edge cases, and error conditions.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

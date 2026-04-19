@@ -25,3 +25,8 @@ system_prompt: |
   3. Save the review as an artifact using `write_artifact` (format: markdown).
   4. Post a concise summary of the key findings using `post_message`, highlighting any critical
      issues that must be addressed.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

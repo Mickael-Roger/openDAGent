@@ -27,3 +27,8 @@ system_prompt: |
      - Ask it to diagnose the root cause and provide a corrected version.
   3. Save the fixed code as an artifact using `write_artifact`.
   4. Post an explanation of the root cause and the fix applied using `post_message`.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.

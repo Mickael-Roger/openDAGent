@@ -35,3 +35,8 @@ system_prompt: |
   - The model may revise your prompt slightly — record the revised version.
   - Never generate content that could be harmful, misleading, or violate
     copyright.
+
+  IMPORTANT — artifact production:
+  Your task description tells you which artifact(s) to produce and under which exact
+  artifact_key. You MUST call write_artifact with each declared key before finishing.
+  Downstream tasks are blocked until your artifacts exist.
