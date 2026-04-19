@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import mimetypes
 import sqlite3
 from importlib import import_module
 from pathlib import Path
@@ -174,6 +176,101 @@ def create_app(
         finally:
             connection.close()
         return JSONResponse(message)
+
+    @app.get("/api/artifacts/{artifact_id}")
+    async def api_get_artifact_meta(artifact_id: str) -> Any:
+        connection = open_connection()
+        try:
+            row = connection.execute(
+                """
+                SELECT artifact_id, project_id, goal_id, artifact_key, type, status,
+                       version, produced_by_task_id, value_json, file_path,
+                       metadata_json, created_at, updated_at
+                FROM artifacts WHERE artifact_id = ?
+                """,
+                (artifact_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+        data = dict(row)
+        # Determine preview kind for the frontend
+        if data["value_json"] is not None:
+            data["preview_kind"] = "text"
+            data["content_type"] = "application/json"
+            data["file_name"] = f"{data['artifact_key'].replace('.', '_')}_v{data['version']}.json"
+        elif data["file_path"]:
+            mime, _ = mimetypes.guess_type(data["file_path"])
+            mime = mime or "application/octet-stream"
+            data["content_type"] = mime
+            data["file_name"] = Path(data["file_path"]).name
+            if mime.startswith("image/"):
+                data["preview_kind"] = "image"
+            elif mime.startswith("text/") or mime in {
+                "application/json", "application/xml",
+                "application/javascript", "application/x-yaml",
+            }:
+                data["preview_kind"] = "text"
+            else:
+                data["preview_kind"] = "download"
+        else:
+            data["preview_kind"] = "download"
+        return JSONResponse(data)
+
+    @app.get("/api/artifacts/{artifact_id}/content")
+    async def api_artifact_content(artifact_id: str) -> Any:
+        responses_module_inner = import_module("fastapi.responses")
+        StreamingResponse = responses_module_inner.StreamingResponse
+        Response = responses_module_inner.Response
+
+        connection = open_connection()
+        try:
+            row = connection.execute(
+                "SELECT value_json, file_path, artifact_key, version FROM artifacts WHERE artifact_id = ?",
+                (artifact_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+        if row["value_json"] is not None:
+            # Pretty-print JSON value
+            try:
+                pretty = json.dumps(json.loads(row["value_json"]), indent=2, ensure_ascii=False)
+            except Exception:
+                pretty = row["value_json"]
+            file_name = f"{row['artifact_key'].replace('.', '_')}_v{row['version']}.json"
+            return Response(
+                content=pretty.encode(),
+                media_type="application/json",
+                headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+            )
+
+        if row["file_path"]:
+            fp = Path(row["file_path"])
+            if not fp.exists():
+                raise HTTPException(status_code=404, detail="File not found on disk")
+            mime, _ = mimetypes.guess_type(str(fp))
+            mime = mime or "application/octet-stream"
+            disposition = "inline" if (
+                mime.startswith("image/") or mime.startswith("text/")
+            ) else "attachment"
+
+            def _iter():
+                with open(fp, "rb") as fh:
+                    while chunk := fh.read(65536):
+                        yield chunk
+
+            return StreamingResponse(
+                _iter(),
+                media_type=mime,
+                headers={"Content-Disposition": f'{disposition}; filename="{fp.name}"'},
+            )
+
+        raise HTTPException(status_code=404, detail="Artifact has no content")
 
     @app.get("/api/projects/{project_id}/messages")
     async def api_get_messages(project_id: str, after: str | None = None) -> Any:

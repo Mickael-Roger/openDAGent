@@ -2,6 +2,7 @@
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="{{ url_for('static', path='/artifact-viewer.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -13,6 +14,24 @@
     </div>
     <a href="{{ url_for('project_detail', project_id=project.project_id) }}" class="btn-ghost">View DAG</a>
 </section>
+
+<!-- Artifact viewer modal (shared) -->
+<div id="artifact-modal" class="artifact-modal" hidden>
+    <div class="artifact-modal-backdrop"></div>
+    <div class="artifact-modal-box">
+        <div class="artifact-modal-header">
+            <div>
+                <strong id="artifact-modal-key"></strong>
+                <span id="artifact-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <a id="artifact-modal-download" class="btn-ghost" style="padding:6px 14px;font-size:0.82rem" download>Download</a>
+                <button class="btn-ghost" id="artifact-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+            </div>
+        </div>
+        <div id="artifact-modal-body" class="artifact-modal-body"></div>
+    </div>
+</div>
 
 <section class="chat-panel">
     <div class="chat-messages" id="chat-messages">
@@ -58,8 +77,22 @@
 
     // Render all server-side markdown bubbles on load
     document.querySelectorAll('.chat-md[data-md]').forEach(el => {
-        el.innerHTML = marked.parse(el.dataset.md);
+        const raw = el.dataset.md;
+        // Extract artifact refs
+        const ARTIFACT_RE = /<!--\s*artifact:([\w]+)\s*-->/g;
+        const artifactIds = [];
+        let m;
+        while ((m = ARTIFACT_RE.exec(raw)) !== null) artifactIds.push(m[1]);
+        const clean = raw.replace(/<!--\s*artifact:[\w]+\s*-->/g, '').trim();
+        el.innerHTML = marked.parse(clean);
         delete el.dataset.md;
+
+        if (artifactIds.length > 0) {
+            const wrap = document.createElement('div');
+            wrap.className = 'chat-artifact-cards';
+            el.parentElement.appendChild(wrap);
+            artifactIds.forEach(aid => appendArtifactCard(wrap, aid));
+        }
     });
 
     // Show typing indicator if the last message on load is from the user
@@ -160,14 +193,97 @@
             p.textContent = content;
             div.appendChild(p);
         } else {
+            // Extract artifact refs before rendering markdown
+            const ARTIFACT_RE = /<!--\s*artifact:([\w]+)\s*-->/g;
+            const artifactIds = [];
+            let match;
+            while ((match = ARTIFACT_RE.exec(content)) !== null) {
+                artifactIds.push(match[1]);
+            }
+            const cleanContent = content.replace(/<!--\s*artifact:[\w]+\s*-->/g, '').trim();
+
             const md = document.createElement('div');
             md.className = 'chat-md';
-            md.innerHTML = marked.parse(content);
+            md.innerHTML = marked.parse(cleanContent);
             div.appendChild(md);
+
+            // Render artifact inline cards
+            if (artifactIds.length > 0) {
+                const cardsWrap = document.createElement('div');
+                cardsWrap.className = 'chat-artifact-cards';
+                div.appendChild(cardsWrap);
+                artifactIds.forEach(aid => appendArtifactCard(cardsWrap, aid));
+            }
         }
 
         messagesEl.appendChild(div);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function appendArtifactCard(container, artifactId) {
+        // Placeholder while loading
+        const card = document.createElement('div');
+        card.className = 'chat-artifact-card';
+        card.innerHTML = '<span style="color:var(--muted);font-size:0.82rem">Loading artifact…</span>';
+        container.appendChild(card);
+
+        let meta;
+        try {
+            const res = await fetch(`/api/artifacts/${artifactId}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            meta = await res.json();
+        } catch (e) {
+            card.innerHTML = `<span style="color:#ffc4cf;font-size:0.82rem">Artifact unavailable</span>`;
+            return;
+        }
+
+        const isImage    = meta.preview_kind === 'image';
+        const isText     = meta.preview_kind === 'text';
+        const contentUrl = `/api/artifacts/${artifactId}/content`;
+
+        if (isImage) {
+            card.innerHTML = '';
+            const label = document.createElement('span');
+            label.className = 'chat-artifact-label';
+            label.textContent = `${meta.artifact_key} · v${meta.version}`;
+            card.appendChild(label);
+
+            const img = document.createElement('img');
+            img.src   = contentUrl;
+            img.alt   = meta.artifact_key;
+            img.className = 'chat-artifact-image';
+            card.appendChild(img);
+
+        } else {
+            // Text or download — show compact card with actions
+            card.innerHTML = '';
+            const info = document.createElement('div');
+            info.innerHTML = `<strong style="font-size:0.88rem">${meta.artifact_key}</strong>
+                <span style="color:var(--muted);font-size:0.78rem;margin-left:8px">${meta.type} · v${meta.version} · ${meta.status}</span>`;
+
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display:flex;gap:8px;margin-top:8px';
+
+            if (isText) {
+                const viewBtn = document.createElement('button');
+                viewBtn.className = 'btn-ghost';
+                viewBtn.style.cssText = 'padding:5px 12px;font-size:0.78rem';
+                viewBtn.textContent = 'View';
+                viewBtn.addEventListener('click', () => openArtifactModal(artifactId));
+                actions.appendChild(viewBtn);
+            }
+
+            const dlLink = document.createElement('a');
+            dlLink.href     = contentUrl;
+            dlLink.download = meta.file_name || meta.artifact_key;
+            dlLink.className = 'btn-ghost';
+            dlLink.style.cssText = 'padding:5px 12px;font-size:0.78rem';
+            dlLink.textContent = 'Download';
+            actions.appendChild(dlLink);
+
+            card.appendChild(info);
+            card.appendChild(actions);
+        }
     }
 </script>
 {% endblock %}

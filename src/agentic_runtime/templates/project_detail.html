@@ -53,13 +53,44 @@
                     <strong>{{ artifact.artifact_key }}</strong>
                     <p>{{ artifact.type }} · v{{ artifact.version }}</p>
                 </div>
-                <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
+                <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+                    <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
+                    <button class="btn-ghost artifact-view-btn" style="padding:6px 12px;font-size:0.8rem"
+                            data-artifact-id="{{ artifact.artifact_id }}">View</button>
+                    <a class="btn-ghost" style="padding:6px 12px;font-size:0.8rem"
+                       href="/api/artifacts/{{ artifact.artifact_id }}/content"
+                       download>Download</a>
+                </div>
             </article>
             {% endfor %}
         </div>
     </section>
 </div>
 
+<!-- Artifact viewer modal -->
+<div id="artifact-modal" class="artifact-modal" hidden>
+    <div class="artifact-modal-backdrop"></div>
+    <div class="artifact-modal-box">
+        <div class="artifact-modal-header">
+            <div>
+                <strong id="artifact-modal-key"></strong>
+                <span id="artifact-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <a id="artifact-modal-download" class="btn-ghost" style="padding:6px 14px;font-size:0.82rem" download>Download</a>
+                <button class="btn-ghost" id="artifact-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+            </div>
+        </div>
+        <div id="artifact-modal-body" class="artifact-modal-body"></div>
+    </div>
+</div>
+
 <script id="graph-data" type="application/json">{{ graph_json|safe }}</script>
 <script src="{{ url_for('static', path='/graph.js') }}"></script>
+<script src="{{ url_for('static', path='/artifact-viewer.js') }}"></script>
+<script>
+    document.querySelectorAll('.artifact-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => openArtifactModal(btn.dataset.artifactId));
+    });
+</script>
 {% endblock %}

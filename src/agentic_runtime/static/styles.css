@@ -636,6 +636,104 @@ a {
   border-color: var(--accent);
 }
 
+/* ── Artifact viewer modal ──────────────────────────────── */
+
+.artifact-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.artifact-modal[hidden] { display: none; }
+
+.artifact-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.artifact-modal-box {
+  position: relative;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 86vh;
+  max-width: 860px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.artifact-modal-header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.artifact-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.artifact-code-block {
+  background: rgba(9, 17, 31, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  margin: 0;
+  overflow-x: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── Artifact cards in chat ─────────────────────────────── */
+
+.chat-artifact-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chat-artifact-card {
+  background: rgba(9, 17, 31, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.chat-artifact-label {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.chat-artifact-image {
+  border-radius: 8px;
+  display: block;
+  max-height: 360px;
+  max-width: 100%;
+}
+
 @media (max-width: 1080px) {
   .shell {
     grid-template-columns: 1fr;
