@@ -48,6 +48,10 @@ class AppConfig:
     def approvals(self) -> dict[str, Any]:
         return self.data.get("approvals", {})
 
+    @property
+    def mcp(self) -> dict[str, Any]:
+        return self.data.get("mcp", {"servers": []})
+
     def runtime_workdir(self) -> Path:
         return self.resolve_path(self.runtime.get("workdir", "."), base=self.base_dir)
 

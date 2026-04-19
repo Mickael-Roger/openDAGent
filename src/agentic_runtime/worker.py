@@ -12,7 +12,7 @@ from .time import utc_now_iso
 logger = logging.getLogger(__name__)
 
 
-def _claim_task(connection, worker_id: str) -> dict[str, Any] | None:
+def _claim_task(connection: Any, worker_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
         SELECT task_id, goal_id, project_id, capability_name
@@ -39,7 +39,12 @@ def _claim_task(connection, worker_id: str) -> dict[str, Any] | None:
     return task if updated == 1 else None
 
 
-def _run_task(connection, task: dict[str, Any], worker_id: str, llm_config: dict[str, Any]) -> None:
+def _run_task(
+    connection: Any,
+    task: dict[str, Any],
+    worker_id: str,
+    app_config: dict[str, Any],
+) -> None:
     task_id: str = task["task_id"]
     attempt_id = new_id("att")
     now = utc_now_iso()
@@ -55,12 +60,17 @@ def _run_task(connection, task: dict[str, Any], worker_id: str, llm_config: dict
     connection.commit()
 
     try:
-        capability = task["capability_name"]
-        if capability == "chat_response":
-            from .capabilities.chat_response import execute
-            execute(connection, task, llm_config)
-        else:
-            raise NotImplementedError(f"Capability not implemented: {capability}")
+        from .capabilities import get_executor
+        executor = get_executor(task["capability_name"], connection)
+        if executor is None:
+            raise NotImplementedError(f"Capability not found: {task['capability_name']!r}")
+
+        executor.execute(
+            connection,
+            task,
+            app_config.get("llm", {}),
+            mcp_config=app_config.get("mcp", {}),
+        )
 
         now = utc_now_iso()
         connection.execute(
@@ -72,10 +82,10 @@ def _run_task(connection, task: dict[str, Any], worker_id: str, llm_config: dict
             (now, attempt_id),
         )
         connection.commit()
-        logger.info("Task %s completed", task_id)
+        logger.info("Task %s completed.", task_id)
 
     except Exception as exc:
-        logger.exception("Task %s failed: %s", task_id, exc)
+        logger.exception("Task %s failed.", task_id)
         now = utc_now_iso()
         connection.execute(
             "UPDATE tasks SET state = 'failed', completed_at = ?, updated_at = ? WHERE task_id = ?",
@@ -92,9 +102,9 @@ def _run_task(connection, task: dict[str, Any], worker_id: str, llm_config: dict
         connection.commit()
 
 
-def _worker_loop(db_path: str, llm_config: dict[str, Any], poll_interval: float) -> None:
+def _worker_loop(db_path: str, app_config: dict[str, Any], poll_interval: float) -> None:
     worker_id = new_id("wrk")
-    logger.info("Worker %s started", worker_id)
+    logger.info("Worker %s started.", worker_id)
     while True:
         try:
             connection = connect(db_path)
@@ -102,25 +112,25 @@ def _worker_loop(db_path: str, llm_config: dict[str, Any], poll_interval: float)
                 task = _claim_task(connection, worker_id)
                 if task:
                     logger.info(
-                        "Worker %s claimed task %s (%s)",
+                        "Worker %s claimed task %s (%s).",
                         worker_id, task["task_id"], task["capability_name"],
                     )
-                    _run_task(connection, task, worker_id, llm_config)
+                    _run_task(connection, task, worker_id, app_config)
             finally:
                 connection.close()
         except Exception:
-            logger.exception("Worker loop error")
+            logger.exception("Worker loop error.")
         time.sleep(poll_interval)
 
 
 def start_worker_thread(
     db_path: str,
-    llm_config: dict[str, Any],
+    app_config: dict[str, Any],
     poll_interval: float = 1.0,
 ) -> threading.Thread:
     thread = threading.Thread(
         target=_worker_loop,
-        args=(db_path, llm_config, poll_interval),
+        args=(db_path, app_config, poll_interval),
         daemon=True,
         name="opendagent-worker",
     )

@@ -1,14 +1,36 @@
 from __future__ import annotations
 
+import json
 import os
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
 
+# ── Response types ────────────────────────────────────────────────────────────
+
+@dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class LLMResponse:
+    content: str | None
+    tool_calls: list[ToolCall] = field(default_factory=list)
+
+    @property
+    def is_final(self) -> bool:
+        return not self.tool_calls
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
 def resolve_api_key(auth_config: dict[str, Any]) -> str | None:
-    auth_type = auth_config.get("type", "none")
-    if auth_type != "api_key":
+    if auth_config.get("type") != "api_key":
         return None
     value = auth_config.get("value", "")
     if value:
@@ -17,58 +39,174 @@ def resolve_api_key(auth_config: dict[str, Any]) -> str | None:
     return os.environ.get(str(env_var)) if env_var else None
 
 
-def complete(
-    messages: list[dict[str, str]],
+# ── Message conversion ────────────────────────────────────────────────────────
+#
+# Internal message format (used throughout the codebase):
+#   {"role": "user"|"assistant", "content": str}
+#   {"role": "assistant", "content": str|None, "tool_calls": [{"id","name","arguments"}]}
+#   {"role": "tool_result", "tool_call_id": str, "content": str}
+
+def _to_openai_messages(
+    messages: list[dict[str, Any]],
+    system: str | None,
+) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    if system:
+        result.append({"role": "system", "content": system})
+    for msg in messages:
+        role = msg["role"]
+        if role == "tool_result":
+            result.append({
+                "role": "tool",
+                "tool_call_id": msg["tool_call_id"],
+                "content": str(msg.get("content", "")),
+            })
+        elif role == "assistant" and msg.get("tool_calls"):
+            result.append({
+                "role": "assistant",
+                "content": msg.get("content"),
+                "tool_calls": [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": json.dumps(tc["arguments"]),
+                        },
+                    }
+                    for tc in msg["tool_calls"]
+                ],
+            })
+        else:
+            result.append({"role": role, "content": msg.get("content", "")})
+    return result
+
+
+def _to_anthropic_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Anthropic requires alternating user/assistant turns.
+    # tool_result messages must be grouped into user messages.
+    result: list[dict[str, Any]] = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        role = msg["role"]
+
+        if role == "tool_result":
+            # Collect consecutive tool_result messages into one user message
+            blocks: list[dict[str, Any]] = []
+            while i < len(messages) and messages[i]["role"] == "tool_result":
+                blocks.append({
+                    "type": "tool_result",
+                    "tool_use_id": messages[i]["tool_call_id"],
+                    "content": str(messages[i].get("content", "")),
+                })
+                i += 1
+            result.append({"role": "user", "content": blocks})
+
+        elif role == "assistant" and msg.get("tool_calls"):
+            blocks = []
+            if msg.get("content"):
+                blocks.append({"type": "text", "text": msg["content"]})
+            for tc in msg["tool_calls"]:
+                blocks.append({
+                    "type": "tool_use",
+                    "id": tc["id"],
+                    "name": tc["name"],
+                    "input": tc["arguments"],
+                })
+            result.append({"role": "assistant", "content": blocks})
+            i += 1
+
+        else:
+            result.append({"role": role, "content": msg.get("content", "")})
+            i += 1
+
+    return result
+
+
+def _openai_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"type": "function", "function": t} for t in tools]
+
+
+def _anthropic_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": t["name"],
+            "description": t.get("description", ""),
+            "input_schema": t.get("parameters", {"type": "object", "properties": {}}),
+        }
+        for t in tools
+    ]
+
+
+# ── Main entry point ──────────────────────────────────────────────────────────
+
+def chat(
+    messages: list[dict[str, Any]],
     provider_config: dict[str, Any],
     model_name: str,
     *,
     system: str | None = None,
-    max_tokens: int = 2048,
-) -> str:
+    tools: list[dict[str, Any]] | None = None,
+    max_tokens: int = 4096,
+) -> LLMResponse:
     provider_type = str(provider_config.get("type", "openai"))
     endpoint = str(provider_config["endpoint"]).rstrip("/")
     api_key = resolve_api_key(provider_config.get("auth", {}))
 
     if provider_type == "anthropic":
-        return _anthropic_complete(messages, endpoint, api_key, model_name, system, max_tokens)
-    return _openai_complete(messages, endpoint, api_key, model_name, system, max_tokens)
+        return _anthropic_chat(messages, endpoint, api_key, model_name, system, tools, max_tokens)
+    return _openai_chat(messages, endpoint, api_key, model_name, system, tools, max_tokens)
 
 
-def _openai_complete(
-    messages: list[dict[str, str]],
+def _openai_chat(
+    messages: list[dict[str, Any]],
     endpoint: str,
     api_key: str | None,
     model_name: str,
     system: str | None,
+    tools: list[dict[str, Any]] | None,
     max_tokens: int,
-) -> str:
+) -> LLMResponse:
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    all_messages: list[dict[str, str]] = []
-    if system:
-        all_messages.append({"role": "system", "content": system})
-    all_messages.extend(messages)
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "messages": _to_openai_messages(messages, system),
+        "max_tokens": max_tokens,
+    }
+    if tools:
+        payload["tools"] = _openai_tools(tools)
+        payload["tool_choice"] = "auto"
 
     with httpx.Client(timeout=120.0) as client:
-        resp = client.post(
-            f"{endpoint}/chat/completions",
-            headers=headers,
-            json={"model": model_name, "messages": all_messages, "max_tokens": max_tokens},
-        )
+        resp = client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
         resp.raise_for_status()
-        return str(resp.json()["choices"][0]["message"]["content"])
+
+    data = resp.json()
+    message = data["choices"][0]["message"]
+    content: str | None = message.get("content")
+    tool_calls: list[ToolCall] = []
+    for tc in message.get("tool_calls") or []:
+        tool_calls.append(ToolCall(
+            id=tc["id"],
+            name=tc["function"]["name"],
+            arguments=json.loads(tc["function"]["arguments"]),
+        ))
+    return LLMResponse(content=content, tool_calls=tool_calls)
 
 
-def _anthropic_complete(
-    messages: list[dict[str, str]],
+def _anthropic_chat(
+    messages: list[dict[str, Any]],
     endpoint: str,
     api_key: str | None,
     model_name: str,
     system: str | None,
+    tools: list[dict[str, Any]] | None,
     max_tokens: int,
-) -> str:
+) -> LLMResponse:
     headers: dict[str, str] = {
         "Content-Type": "application/json",
         "anthropic-version": "2023-06-01",
@@ -79,16 +217,41 @@ def _anthropic_complete(
     payload: dict[str, Any] = {
         "model": model_name,
         "max_tokens": max_tokens,
-        "messages": messages,
+        "messages": _to_anthropic_messages(messages),
     }
     if system:
         payload["system"] = system
+    if tools:
+        payload["tools"] = _anthropic_tools(tools)
 
     with httpx.Client(timeout=120.0) as client:
-        resp = client.post(
-            f"{endpoint}/v1/messages",
-            headers=headers,
-            json=payload,
-        )
+        resp = client.post(f"{endpoint}/v1/messages", headers=headers, json=payload)
         resp.raise_for_status()
-        return str(resp.json()["content"][0]["text"])
+
+    data = resp.json()
+    content: str | None = None
+    tool_calls: list[ToolCall] = []
+    for block in data.get("content", []):
+        if block["type"] == "text":
+            content = (content or "") + block["text"]
+        elif block["type"] == "tool_use":
+            tool_calls.append(ToolCall(
+                id=block["id"],
+                name=block["name"],
+                arguments=block["input"],
+            ))
+    return LLMResponse(content=content, tool_calls=tool_calls)
+
+
+# ── Backward-compatible helper ────────────────────────────────────────────────
+
+def complete(
+    messages: list[dict[str, str]],
+    provider_config: dict[str, Any],
+    model_name: str,
+    *,
+    system: str | None = None,
+    max_tokens: int = 2048,
+) -> str:
+    resp = chat(messages, provider_config, model_name, system=system, max_tokens=max_tokens)
+    return resp.content or ""

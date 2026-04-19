@@ -4,7 +4,7 @@ import argparse
 from importlib import import_module
 from pathlib import Path
 
-from .capabilities import register_builtins
+from .capabilities import load_and_register
 from .config import AppConfig, load_app_config
 from .db import initialize_database
 
@@ -70,8 +70,9 @@ def main(argv: list[str] | None = None) -> int:
     db_path = _effective_db_path(config, workdir, args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    user_caps_dir = workdir / "config" / "capabilities"
     connection = initialize_database(db_path)
-    register_builtins(connection)
+    load_and_register(connection, [user_caps_dir] if user_caps_dir.exists() else None)
     connection.close()
 
     if args.init_db_only:
@@ -121,11 +122,14 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    llm_config = config.llm
-    start_ingress_thread(str(db_path))
-    start_worker_thread(str(db_path), llm_config)
+    app_config = {"llm": config.llm, "mcp": config.mcp}
+    user_caps_dir = config.runtime_workdir() / "config" / "capabilities"
+    extra_dirs = [str(user_caps_dir)] if user_caps_dir.exists() else None
 
-    app = create_app(str(db_path))
+    start_ingress_thread(str(db_path))
+    start_worker_thread(str(db_path), app_config)
+
+    app = create_app(str(db_path), extra_capability_dirs=extra_dirs)
     uvicorn = import_module("uvicorn")
     uvicorn.run(app, host=host, port=port)
 

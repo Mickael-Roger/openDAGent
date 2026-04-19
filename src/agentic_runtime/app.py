@@ -5,7 +5,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from .capabilities import register_builtins
+from .capabilities import load_and_register
 from .dashboard import (
     add_user_message,
     create_project_with_goal,
@@ -26,7 +26,10 @@ except ImportError:  # pragma: no cover - fastapi may be absent in minimal envir
 PACKAGE_ROOT = Path(__file__).resolve().parent
 
 
-def create_app(db_path: str = "runtime/runtime.db") -> Any:
+def create_app(
+    db_path: str = "runtime/runtime.db",
+    extra_capability_dirs: list[str] | None = None,
+) -> Any:
     fastapi_module = import_module("fastapi")
     responses_module = import_module("fastapi.responses")
     staticfiles_module = import_module("fastapi.staticfiles")
@@ -40,7 +43,8 @@ def create_app(db_path: str = "runtime/runtime.db") -> Any:
     Jinja2Templates = templating_module.Jinja2Templates
 
     conn = initialize_database(db_path)
-    register_builtins(conn)
+    extra_dirs = [Path(d) for d in extra_capability_dirs] if extra_capability_dirs else None
+    load_and_register(conn, extra_dirs)
     conn.close()
 
     app = FastAPI(title="openDAGent", version="0.1.0")

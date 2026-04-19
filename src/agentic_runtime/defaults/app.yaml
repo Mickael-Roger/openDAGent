@@ -76,3 +76,28 @@ scheduler:
 
 approvals:
   default_required_for_high_risk: true
+
+mcp:
+  servers: []
+  # Example stdio server:
+  # - id: filesystem
+  #   transport: stdio
+  #   command: uvx
+  #   args: ["mcp-server-filesystem", "/projects"]
+  #
+  # Example HTTP server:
+  # - id: brave_search
+  #   transport: http
+  #   url: https://mcp.brave.com/search
+  #   auth:
+  #     type: api_key
+  #     env_var: BRAVE_API_KEY
+  #
+  # Environment variable injection for stdio servers:
+  # - id: github
+  #   transport: stdio
+  #   command: npx
+  #   args: ["-y", "@modelcontextprotocol/server-github"]
+  #   env:
+  #     GITHUB_TOKEN:
+  #       env_var: GITHUB_TOKEN
