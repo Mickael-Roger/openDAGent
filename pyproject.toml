@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openDAGent"
-version = "0.2.6"
+version = "0.2.7"
 description = "DAG artifact/task oriented for agentic AI workflows."
 requires-python = ">=3.11"
 dependencies = [

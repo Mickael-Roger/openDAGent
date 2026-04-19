@@ -1,0 +1,319 @@
+# ============================================================
+#  openDAGent — full configuration example
+#  Copy to ~/.config/opendagent/config.yaml and edit as needed.
+#  Generate a minimal starter config: openDAGent --init-config <path>
+# ============================================================
+
+
+# ── Runtime ──────────────────────────────────────────────────────────────────
+runtime:
+  # Root working directory. Paths for the database, logs, projects, and
+  # sandboxes are resolved relative to this directory.
+  workdir: .
+
+  # SQLite database file (relative to workdir).
+  db_path: runtime/runtime.db
+
+  # Directory where per-task log files are written (relative to workdir).
+  logs_dir: runtime/logs
+
+  # How often the scheduler polls for ready tasks (seconds).
+  poll_interval_seconds: 5
+
+  # How long a worker may hold a task lease without a heartbeat before the
+  # task is considered abandoned and re-queued (seconds).
+  lease_duration_seconds: 120
+
+  # How frequently a running worker must send a heartbeat (seconds).
+  # Must be less than lease_duration_seconds.
+  heartbeat_interval_seconds: 30
+
+  # Remove git worktrees created for sandboxed tasks when the runtime exits.
+  cleanup_worktrees_on_exit: false
+
+
+# ── Web UI ────────────────────────────────────────────────────────────────────
+server:
+  # Set to false to run without the web interface.
+  enabled: true
+
+  # Interface to bind the web UI. Use 0.0.0.0 to expose on all interfaces.
+  host: 127.0.0.1
+
+  # TCP port for the web UI.
+  port: 8080
+
+
+# ── Input channels ────────────────────────────────────────────────────────────
+# These are the ways external requests can be submitted to openDAGent.
+inputs:
+
+  # REST API — always recommended; used by the web UI and external callers.
+  api:
+    enabled: true
+    bind_host: 127.0.0.1
+    bind_port: 8090
+
+  # Discord bot — submit tasks by mentioning the bot or DMing it.
+  discord:
+    enabled: false
+    # Name of the environment variable that holds the bot token.
+    bot_token_env: OPENDAGENT_DISCORD_TOKEN
+    # Restrict the bot to specific guild (server) IDs. Empty = all guilds.
+    allowed_guild_ids: []
+    # allowed_guild_ids:
+    #   - 123456789012345678
+
+  # Email polling — submit tasks by sending an email to the configured address.
+  email:
+    enabled: false
+    imap_host: imap.example.com
+    smtp_host: smtp.example.com
+    username: agent@example.com
+    # Name of the environment variable that holds the email password.
+    password_env: OPENDAGENT_EMAIL_PASSWORD
+
+
+# ── LLM providers ─────────────────────────────────────────────────────────────
+# Define one or more LLM providers and their models.
+# Capabilities are automatically gated on the features declared here — for
+# example, `analyze_image` only activates when at least one model has `vision`,
+# and `generate_image` requires `image_generation`.
+#
+# Available features:
+#   vision           — multimodal image input (attach images to prompts)
+#   reasoning        — extended chain-of-thought / thinking mode
+#   json_mode        — guaranteed structured JSON output
+#   long_context     — 100k+ token context window
+#   code             — specialist code generation (also needed by opencode)
+#   image_generation — can generate images via a diffusion-compatible API
+#   native_web_search — built-in web search (no Brave API key needed)
+llm:
+  # Default provider/model used when a task does not specify one explicitly.
+  default_provider: openai
+  default_model: gpt-4.1
+
+  providers:
+
+    # ── OpenAI ──────────────────────────────────────────────────────────────
+    - id: openai
+      type: openai
+      endpoint: https://api.openai.com/v1
+      auth:
+        type: api_key
+        env_var: OPENAI_API_KEY
+      models:
+        - id: gpt-4.1
+          role: strong_reasoning
+          features: [vision, json_mode, long_context, code]
+        - id: gpt-4.1-mini
+          role: balanced
+          features: [vision, json_mode, code]
+        # GPT-4o with native web browsing:
+        # - id: gpt-4o-search-preview
+        #   role: balanced
+        #   features: [vision, json_mode, native_web_search]
+        # OpenAI image generation (dall-e-3, gpt-image-1, or any compatible model):
+        # - id: dall-e-3
+        #   role: image_generation
+        #   features: [image_generation]
+
+    # ── Anthropic ────────────────────────────────────────────────────────────
+    - id: anthropic
+      type: anthropic
+      endpoint: https://api.anthropic.com
+      auth:
+        type: api_key
+        env_var: ANTHROPIC_API_KEY
+      models:
+        - id: claude-opus-4-6
+          role: strong_reasoning
+          features: [vision, reasoning, long_context, code, json_mode]
+        - id: claude-sonnet-4-6
+          role: balanced
+          features: [vision, long_context, code, json_mode]
+        - id: claude-haiku-4-5
+          role: cheap_fast
+          features: [vision, json_mode]
+        # Claude with native web search (when feature becomes generally available):
+        # - id: claude-sonnet-4-6
+        #   role: balanced
+        #   features: [vision, long_context, code, json_mode, native_web_search]
+
+    # ── Google Gemini (OpenAI-compatible endpoint) ────────────────────────────
+    # - id: google
+    #   type: openai
+    #   endpoint: https://generativelanguage.googleapis.com/v1beta/openai
+    #   auth:
+    #     type: api_key
+    #     env_var: GOOGLE_API_KEY
+    #   models:
+    #     - id: gemini-2.5-pro
+    #       role: strong_reasoning
+    #       features: [vision, reasoning, long_context, code, json_mode, native_web_search]
+    #     - id: gemini-2.5-flash
+    #       role: balanced
+    #       features: [vision, long_context, code, json_mode]
+
+    # ── Mistral ───────────────────────────────────────────────────────────────
+    # - id: mistral
+    #   type: openai
+    #   endpoint: https://api.mistral.ai/v1
+    #   auth:
+    #     type: api_key
+    #     env_var: MISTRAL_API_KEY
+    #   models:
+    #     - id: mistral-large-latest
+    #       role: strong_reasoning
+    #       features: [vision, json_mode, code]
+    #     - id: mistral-small-latest
+    #       role: cheap_fast
+    #       features: [json_mode]
+
+    # ── Local / self-hosted (Ollama, vLLM, LM Studio, …) ─────────────────────
+    # Any OpenAI-compatible server works here.
+    # - id: local
+    #   type: openai
+    #   endpoint: http://localhost:11434/v1   # Ollama default
+    #   auth:
+    #     type: none
+    #   models:
+    #     - id: qwen2.5-coder:32b
+    #       role: strong_reasoning
+    #       features: [code, json_mode]
+    #     - id: llama3.3:70b
+    #       role: balanced
+    #       features: [json_mode]
+
+    # ── Any OpenAI-compatible diffusion API for image generation ─────────────
+    # The generate_image capability uses IMAGE_GEN_ENDPOINT / IMAGE_GEN_MODEL /
+    # IMAGE_GEN_API_KEY env vars, so declare a model with image_generation here
+    # only to activate the capability gate; the env vars control the actual call.
+    # - id: diffusion
+    #   type: openai
+    #   endpoint: https://api.example.com/v1
+    #   auth:
+    #     type: api_key
+    #     env_var: IMAGE_GEN_API_KEY
+    #   models:
+    #     - id: stable-diffusion-xl
+    #       role: image_generation
+    #       features: [image_generation]
+
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+git:
+  # Default branch for new projects.
+  default_branch: main
+
+  # Run `git gc --auto` periodically to keep repos tidy.
+  auto_gc: false
+
+  # Directory where project git repos are created (relative to workdir).
+  projects_dir: projects
+
+  # Directory where per-task sandboxed worktrees are checked out (relative to workdir).
+  sandboxes_dir: sandboxes
+
+
+# ── Planner ───────────────────────────────────────────────────────────────────
+planner:
+  # Maximum number of tasks the planner may generate for a single goal.
+  max_tasks_per_plan: 15
+
+
+# ── Scheduler ────────────────────────────────────────────────────────────────
+scheduler:
+  # Maximum number of tasks that may run concurrently for a single goal.
+  max_running_tasks_per_goal: 3
+
+  # Maximum number of tasks running across all goals at the same time.
+  max_running_tasks_total: 8
+
+
+# ── Approvals ────────────────────────────────────────────────────────────────
+approvals:
+  # Require human approval before executing tasks whose capability has
+  # risk_level: high or risk_level: critical.
+  default_required_for_high_risk: true
+
+
+# ── opencode (AI coding agent) ────────────────────────────────────────────────
+# opencode is an external AI coding agent (https://opencode.ai).
+# When the `opencode` binary is present in PATH and enabled here, openDAGent
+# starts a persistent `opencode serve` process at boot and exposes the
+# code / test_code / code_review / debug_code capabilities.
+# If the binary is absent, those capabilities are automatically hidden and a
+# warning is printed at startup.
+opencode:
+  enabled: true
+
+  # TCP port for the opencode serve API. Must not conflict with other services.
+  port: 9180
+
+  # Force a specific provider/model for coding tasks.
+  # Format: "<provider-id>/<model-id>" matching the ids declared in the llm section.
+  # If omitted, the first code-capable model found in the llm section is used.
+  # model_hint: anthropic/claude-opus-4-6
+
+
+# ── MCP servers ───────────────────────────────────────────────────────────────
+# Model Context Protocol servers that capabilities can call as additional tools.
+# Each server exposes one or more tools prefixed with "<server-id>__".
+# Assign MCP servers to a capability by listing the server id in the capability's
+# `mcp_servers` field (in its YAML definition).
+mcp:
+  servers: []
+
+  # ── stdio server (local process) ─────────────────────────────────────────
+  # The server is launched as a child process; JSON-RPC over stdin/stdout.
+  #
+  # - id: filesystem
+  #   transport: stdio
+  #   command: uvx
+  #   args: ["mcp-server-filesystem", "/home/user/projects"]
+  #
+  # ── stdio server with environment variable injection ──────────────────────
+  # Useful for passing secrets without hard-coding them in config.
+  #
+  # - id: github
+  #   transport: stdio
+  #   command: npx
+  #   args: ["-y", "@modelcontextprotocol/server-github"]
+  #   env:
+  #     GITHUB_TOKEN:
+  #       env_var: GITHUB_TOKEN
+  #
+  # - id: gitlab
+  #   transport: stdio
+  #   command: npx
+  #   args: ["-y", "@modelcontextprotocol/server-gitlab"]
+  #   env:
+  #     GITLAB_TOKEN:
+  #       env_var: GITLAB_TOKEN
+  #     GITLAB_URL:
+  #       value: https://gitlab.example.com
+  #
+  # ── HTTP server (remote) ─────────────────────────────────────────────────
+  # The server is a remote HTTP endpoint; JSON-RPC over HTTP POST.
+  #
+  # - id: brave_search
+  #   transport: http
+  #   url: https://mcp.brave.com/search
+  #   auth:
+  #     type: api_key
+  #     env_var: BRAVE_API_KEY
+  #
+  # - id: linear
+  #   transport: http
+  #   url: https://mcp.linear.app/sse
+  #   auth:
+  #     type: api_key
+  #     env_var: LINEAR_API_KEY
+  #
+  # - id: slack
+  #   transport: http
+  #   url: https://mcp.slack.com/sse
+  #   auth:
+  #     type: api_key
+  #     env_var: SLACK_TOKEN
