@@ -1,145 +1,213 @@
 (function () {
-  const dataElement = document.getElementById("graph-data");
-  const svg = document.getElementById("task-graph");
-  if (!dataElement || !svg) {
+  "use strict";
+
+  const dataEl = document.getElementById("graph-data");
+  const container = document.getElementById("cy");
+  if (!dataEl || !container) return;
+
+  const graph = JSON.parse(dataEl.textContent || '{"nodes":[],"edges":[]}');
+
+  if (!graph.nodes.length) {
+    container.innerHTML =
+      '<p class="graph-empty">No project tasks yet — submit a goal and let the planner build the DAG.</p>';
     return;
   }
 
-  const graph = JSON.parse(dataElement.textContent || "{\"nodes\":[],\"edges\":[]}");
-  const width = Math.max(svg.clientWidth || 900, 900);
-  const nodeWidth = 220;
-  const nodeHeight = 74;
-  const horizontalGap = 110;
-  const verticalGap = 34;
+  // ── Elements ──────────────────────────────────────────────────────────────
 
-  const levels = computeLevels(graph.nodes, graph.edges);
-  const columns = new Map();
-  graph.nodes.forEach((node) => {
-    const level = levels.get(node.task_id) || 0;
-    if (!columns.has(level)) {
-      columns.set(level, []);
-    }
-    columns.get(level).push(node);
-  });
+  const elements = [];
 
-  const positions = new Map();
-  const sortedLevels = [...columns.keys()].sort((a, b) => a - b);
-  let totalHeight = 0;
-
-  sortedLevels.forEach((level) => {
-    const column = columns.get(level) || [];
-    column.forEach((node, index) => {
-      const x = 40 + level * (nodeWidth + horizontalGap);
-      const y = 40 + index * (nodeHeight + verticalGap);
-      positions.set(node.task_id, { x, y });
-      totalHeight = Math.max(totalHeight, y + nodeHeight + 40);
+  graph.nodes.forEach(function (n) {
+    var title = n.title && n.title.length > 30 ? n.title.slice(0, 29) + "\u2026" : (n.title || "");
+    var cap   = n.capability_name || "";
+    elements.push({
+      data: {
+        id:         n.task_id,
+        label:      title,
+        sublabel:   cap ? cap + " \u00B7 " + n.state : n.state,
+        state:      n.state,
+        href:       "/tasks/" + n.task_id,
+      },
     });
   });
 
-  svg.setAttribute("viewBox", `0 0 ${width} ${Math.max(totalHeight, 420)}`);
-  svg.innerHTML = "";
-
-  graph.edges.forEach((edge) => {
-    const source = positions.get(edge.source);
-    const target = positions.get(edge.target);
-    if (!source || !target) {
-      return;
-    }
-
-    const startX = source.x + nodeWidth;
-    const startY = source.y + nodeHeight / 2;
-    const endX = target.x;
-    const endY = target.y + nodeHeight / 2;
-    const curve = `M ${startX} ${startY} C ${startX + 46} ${startY}, ${endX - 46} ${endY}, ${endX} ${endY}`;
-
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", curve);
-    path.setAttribute("class", "graph-edge");
-    svg.appendChild(path);
-
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("class", "graph-label");
-    label.setAttribute("x", String((startX + endX) / 2));
-    label.setAttribute("y", String((startY + endY) / 2 - 8));
-    label.textContent = edge.artifacts.map((artifact) => artifact.artifact_key).join(", ");
-    svg.appendChild(label);
+  var seenEdges = {};
+  graph.edges.forEach(function (e) {
+    var key = e.source + "__" + e.target;
+    if (seenEdges[key]) return;
+    seenEdges[key] = true;
+    var label = e.artifacts.map(function (a) { return a.artifact_key; }).join("\n");
+    elements.push({
+      data: { id: key, source: e.source, target: e.target, label: label },
+    });
   });
 
-  graph.nodes.forEach((node) => {
-    const position = positions.get(node.task_id);
-    if (!position) {
-      return;
-    }
+  // ── Cytoscape ─────────────────────────────────────────────────────────────
 
-    const group = document.createElementNS("http://www.w3.org/2000/svg", "a");
-    group.setAttribute("href", `/tasks/${node.task_id}`);
-    group.setAttribute("class", "graph-node");
+  var cy = cytoscape({
+    container: container,
+    elements:  elements,
 
-    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", String(position.x));
-    rect.setAttribute("y", String(position.y));
-    rect.setAttribute("width", String(nodeWidth));
-    rect.setAttribute("height", String(nodeHeight));
-    rect.setAttribute("rx", "18");
-    group.appendChild(rect);
+    layout: {
+      name:            "breadthfirst",
+      directed:        true,
+      padding:         44,
+      spacingFactor:   1.55,
+      avoidOverlap:    true,
+      nodeDimensionsIncludeLabels: true,
+      // lay left to right
+      transform: function (node, pos) { return pos; },
+    },
 
-    const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    title.setAttribute("x", String(position.x + 16));
-    title.setAttribute("y", String(position.y + 28));
-    title.textContent = truncate(node.title, 26);
-    group.appendChild(title);
+    style: [
+      /* ── Default node ───────────────────────────────────────────────── */
+      {
+        selector: "node",
+        style: {
+          "shape":             "round-rectangle",
+          "width":             210,
+          "height":            72,
+          "background-color":  "rgba(13,27,46,0.92)",
+          "border-color":      "rgba(148,163,184,0.35)",
+          "border-width":      1.5,
+          "label":             function (ele) {
+            return ele.data("label") + "\n" + ele.data("sublabel");
+          },
+          "text-wrap":         "wrap",
+          "text-max-width":    190,
+          "text-valign":       "center",
+          "text-halign":       "center",
+          "font-family":       "Inter, ui-sans-serif, system-ui, sans-serif",
+          "font-size":         12,
+          "line-height":       1.55,
+          "color":             "#9bb0d1",
+        },
+      },
 
-    const meta = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    meta.setAttribute("x", String(position.x + 16));
-    meta.setAttribute("y", String(position.y + 48));
-    meta.setAttribute("class", "graph-label");
-    meta.textContent = `${node.state} · ${node.goal_title}`;
-    group.appendChild(meta);
+      /* ── State overrides ─────────────────────────────────────────────── */
+      {
+        selector: "node[state = 'done']",
+        style: {
+          "background-color": "rgba(69,208,184,0.13)",
+          "border-color":     "rgba(69,208,184,0.75)",
+          "border-width":     2,
+          "color":            "#9ff5e4",
+        },
+      },
+      {
+        selector: "node[state = 'running']",
+        style: {
+          "background-color": "rgba(124,156,255,0.17)",
+          "border-color":     "rgba(124,156,255,0.85)",
+          "border-width":     2,
+          "color":            "#c9d6ff",
+        },
+      },
+      {
+        selector: "node[state = 'claimed'], node[state = 'queued']",
+        style: {
+          "background-color": "rgba(124,156,255,0.10)",
+          "border-color":     "rgba(124,156,255,0.50)",
+          "border-width":     1.5,
+          "color":            "#c9d6ff",
+        },
+      },
+      {
+        selector: "node[state = 'failed'], node[state = 'cancelled']",
+        style: {
+          "background-color": "rgba(255,92,123,0.14)",
+          "border-color":     "rgba(255,92,123,0.7)",
+          "border-width":     2,
+          "color":            "#ffc4cf",
+        },
+      },
+      {
+        selector: "node[state = 'blocked'], node[state = 'paused_manual'], node[state = 'paused_pending_change_review']",
+        style: {
+          "background-color": "rgba(255,196,92,0.12)",
+          "border-color":     "rgba(255,196,92,0.65)",
+          "border-width":     1.5,
+          "color":            "#ffe5b8",
+        },
+      },
 
-    svg.appendChild(group);
+      /* ── Selected / hover ────────────────────────────────────────────── */
+      {
+        selector: "node:selected",
+        style: {
+          "border-width":     2.5,
+          "border-opacity":   1,
+          "shadow-blur":      14,
+          "shadow-color":     "#7c9cff",
+          "shadow-opacity":   0.45,
+          "shadow-offset-x":  0,
+          "shadow-offset-y":  0,
+        },
+      },
+      {
+        selector: "node.hovered",
+        style: {
+          "border-width":     2,
+          "border-opacity":   0.95,
+        },
+      },
+
+      /* ── Edges ───────────────────────────────────────────────────────── */
+      {
+        selector: "edge",
+        style: {
+          "width":                  1.5,
+          "line-color":             "rgba(155,176,209,0.30)",
+          "target-arrow-color":     "rgba(155,176,209,0.55)",
+          "target-arrow-shape":     "triangle",
+          "curve-style":            "bezier",
+          "arrow-scale":            1.15,
+          "label":                  "data(label)",
+          "font-size":              9,
+          "text-wrap":              "wrap",
+          "color":                  "rgba(155,176,209,0.65)",
+          "font-family":            "Inter, ui-sans-serif, system-ui, sans-serif",
+          "text-rotation":          "autorotate",
+          "text-background-color":  "#09111f",
+          "text-background-opacity": 0.72,
+          "text-background-padding": 2,
+          "text-background-shape":  "round-rectangle",
+        },
+      },
+      {
+        selector: "edge:selected",
+        style: {
+          "line-color":         "rgba(124,156,255,0.65)",
+          "target-arrow-color": "rgba(124,156,255,0.8)",
+          "width":              2.5,
+        },
+      },
+    ],
+
+    userZoomingEnabled:  true,
+    userPanningEnabled:  true,
+    boxSelectionEnabled: false,
+    minZoom: 0.2,
+    maxZoom: 3,
   });
 
-  function computeLevels(nodes, edges) {
-    const incoming = new Map();
-    const adjacency = new Map();
-    const levels = new Map();
+  // ── Interactions ──────────────────────────────────────────────────────────
 
-    nodes.forEach((node) => {
-      incoming.set(node.task_id, 0);
-      adjacency.set(node.task_id, []);
-    });
+  cy.on("tap", "node", function (evt) {
+    window.location.href = evt.target.data("href");
+  });
 
-    edges.forEach((edge) => {
-      adjacency.get(edge.source)?.push(edge.target);
-      incoming.set(edge.target, (incoming.get(edge.target) || 0) + 1);
-    });
+  cy.on("mouseover", "node", function (evt) {
+    container.style.cursor = "pointer";
+    evt.target.addClass("hovered");
+  });
+  cy.on("mouseout", "node", function (evt) {
+    container.style.cursor = "default";
+    evt.target.removeClass("hovered");
+  });
 
-    const queue = nodes.filter((node) => (incoming.get(node.task_id) || 0) === 0).map((node) => node.task_id);
-    while (queue.length > 0) {
-      const nodeId = queue.shift();
-      const nextLevel = levels.get(nodeId) || 0;
-      (adjacency.get(nodeId) || []).forEach((neighbor) => {
-        levels.set(neighbor, Math.max(levels.get(neighbor) || 0, nextLevel + 1));
-        incoming.set(neighbor, (incoming.get(neighbor) || 0) - 1);
-        if ((incoming.get(neighbor) || 0) === 0) {
-          queue.push(neighbor);
-        }
-      });
-    }
-
-    nodes.forEach((node) => {
-      if (!levels.has(node.task_id)) {
-        levels.set(node.task_id, 0);
-      }
-    });
-
-    return levels;
-  }
-
-  function truncate(value, maxLength) {
-    if (value.length <= maxLength) {
-      return value;
-    }
-    return `${value.slice(0, maxLength - 1)}…`;
-  }
+  // Fit graph on first render once layout settles
+  cy.one("layoutstop", function () {
+    cy.fit(undefined, 32);
+  });
 })();

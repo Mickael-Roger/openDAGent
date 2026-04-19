@@ -133,7 +133,8 @@ def get_project_graph_data(
 
     task_rows = connection.execute(
         """
-        SELECT tasks.task_id, tasks.goal_id, tasks.title, tasks.state, tasks.priority, goals.title AS goal_title
+        SELECT tasks.task_id, tasks.goal_id, tasks.title, tasks.capability_name,
+               tasks.state, tasks.priority, goals.title AS goal_title
         FROM tasks
         JOIN goals ON goals.goal_id = tasks.goal_id
         WHERE tasks.project_id = ?

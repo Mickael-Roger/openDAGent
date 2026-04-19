@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+{% endblock %}
+
 {% block content %}
 <section class="hero">
     <div>
@@ -22,11 +26,15 @@
 <section class="panel graph-panel">
     <div class="panel-header">
         <h2>Task DAG</h2>
-        <p>Edges are inferred from produced and required artifact declarations.</p>
+        <div class="graph-legend">
+            <span class="graph-legend-item legend-created">created / queued</span>
+            <span class="graph-legend-item legend-running">running</span>
+            <span class="graph-legend-item legend-done">done</span>
+            <span class="graph-legend-item legend-failed">failed</span>
+            <span class="graph-legend-item legend-blocked">blocked / paused</span>
+        </div>
     </div>
-    <div class="graph-wrap">
-        <svg id="task-graph" class="task-graph" aria-label="Task dependency graph"></svg>
-    </div>
+    <div id="cy" class="cy-container"></div>
 </section>
 
 <div class="split-layout">

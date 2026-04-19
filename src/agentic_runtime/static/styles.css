@@ -272,36 +272,67 @@ a {
   color: #ffe5b8;
 }
 
-.graph-wrap {
-  min-height: 420px;
-}
-
-.task-graph {
+.cy-container {
   width: 100%;
-  min-height: 420px;
-  display: block;
+  height: 520px;
+  background: rgba(9, 17, 31, 0.52);
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  overflow: hidden;
 }
 
-.graph-node rect {
-  fill: #13213a;
-  stroke: rgba(124, 156, 255, 0.38);
-  stroke-width: 1.4;
+.graph-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.92rem;
+  padding: 80px 20px;
+  margin: 0;
 }
 
-.graph-node text {
-  fill: var(--text);
-  font-size: 13px;
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
-.graph-edge {
-  stroke: rgba(155, 176, 209, 0.45);
-  stroke-width: 1.5;
-  fill: none;
+.graph-legend-item {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
 }
 
-.graph-label {
-  fill: var(--muted);
-  font-size: 11px;
+.legend-created {
+  background: rgba(124, 156, 255, 0.10);
+  border-color: rgba(124, 156, 255, 0.40);
+  color: #c9d6ff;
+}
+
+.legend-running {
+  background: rgba(124, 156, 255, 0.17);
+  border-color: rgba(124, 156, 255, 0.80);
+  color: #c9d6ff;
+}
+
+.legend-done {
+  background: rgba(69, 208, 184, 0.13);
+  border-color: rgba(69, 208, 184, 0.75);
+  color: #9ff5e4;
+}
+
+.legend-failed {
+  background: rgba(255, 92, 123, 0.14);
+  border-color: rgba(255, 92, 123, 0.70);
+  color: #ffc4cf;
+}
+
+.legend-blocked {
+  background: rgba(255, 196, 92, 0.12);
+  border-color: rgba(255, 196, 92, 0.65);
+  color: #ffe5b8;
 }
 
 .split-layout {

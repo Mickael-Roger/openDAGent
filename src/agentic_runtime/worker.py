@@ -102,9 +102,45 @@ def _run_task(
         connection.commit()
 
 
+def recover_interrupted_tasks(connection: Any) -> None:
+    """
+    Reset tasks left in 'running' or 'claimed' state from a previous process.
+    Called once at worker startup so tasks are not silently lost on restart.
+    """
+    now = utc_now_iso()
+    result = connection.execute(
+        """
+        UPDATE tasks
+        SET state = 'queued',
+            lease_owner_worker_id = NULL,
+            lease_expires_at = NULL,
+            updated_at = ?
+        WHERE state IN ('running', 'claimed')
+        """,
+        (now,),
+    )
+    # Close orphaned attempt records so the task_attempts history is clean
+    connection.execute(
+        "UPDATE task_attempts SET status = 'failed', ended_at = ? WHERE status = 'running'",
+        (now,),
+    )
+    connection.commit()
+    if result.rowcount:
+        logger.info(
+            "Restart recovery: re-queued %d interrupted task(s).",
+            result.rowcount,
+        )
+
+
 def _worker_loop(db_path: str, app_config: dict[str, Any], poll_interval: float) -> None:
     worker_id = new_id("wrk")
     logger.info("Worker %s started.", worker_id)
+    # Recover tasks that were running when the process last exited
+    startup_conn = connect(db_path)
+    try:
+        recover_interrupted_tasks(startup_conn)
+    finally:
+        startup_conn.close()
     while True:
         try:
             connection = connect(db_path)
