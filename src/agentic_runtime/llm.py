@@ -86,6 +86,7 @@ class ToolCall:
 class LLMResponse:
     content: str | None
     tool_calls: list[ToolCall] = field(default_factory=list)
+    usage: dict[str, int] | None = None  # prompt_tokens, completion_tokens
 
     @property
     def is_final(self) -> bool:
@@ -284,7 +285,14 @@ def _openai_chat(
             name=tc["function"]["name"],
             arguments=arguments,
         ))
-    return LLMResponse(content=content, tool_calls=tool_calls)
+    raw_usage = data.get("usage", {}) or {}
+    usage: dict[str, int] | None = None
+    if raw_usage:
+        usage = {
+            "prompt_tokens": int(raw_usage.get("prompt_tokens", 0)),
+            "completion_tokens": int(raw_usage.get("completion_tokens", 0)),
+        }
+    return LLMResponse(content=content, tool_calls=tool_calls, usage=usage)
 
 
 def _anthropic_chat(
@@ -343,7 +351,14 @@ def _anthropic_chat(
                 name=block["name"],
                 arguments=block["input"],
             ))
-    return LLMResponse(content=content, tool_calls=tool_calls)
+    raw_usage = data.get("usage", {}) or {}
+    usage: dict[str, int] | None = None
+    if raw_usage:
+        usage = {
+            "prompt_tokens": int(raw_usage.get("input_tokens", 0)),
+            "completion_tokens": int(raw_usage.get("output_tokens", 0)),
+        }
+    return LLMResponse(content=content, tool_calls=tool_calls, usage=usage)
 
 
 # ── Backward-compatible helper ────────────────────────────────────────────────

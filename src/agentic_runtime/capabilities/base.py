@@ -6,6 +6,8 @@ from typing import Any
 
 from .. import llm as llm_mod
 from .. import tools as tools_mod
+from ..ids import new_id
+from ..time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +71,13 @@ class BaseCapability:
         mcp_dispatch: dict[str, Any],
     ) -> None:
         provider, model, max_tokens = self._resolve_provider(llm_config)
+        provider_id = str(provider.get("id", ""))
         all_schemas = [t.schema() for t in native_tools] + mcp_schemas
 
         messages = self._build_initial_messages(conn, task)
+
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
 
         for iteration in range(self.max_iterations):
             response = llm_mod.chat(
@@ -82,6 +88,10 @@ class BaseCapability:
                 tools=all_schemas if all_schemas else None,
                 max_tokens=max_tokens,
             )
+
+            if response.usage:
+                total_prompt_tokens     += response.usage.get("prompt_tokens", 0)
+                total_completion_tokens += response.usage.get("completion_tokens", 0)
 
             if response.is_final:
                 if response.content:
@@ -110,7 +120,48 @@ class BaseCapability:
         else:
             logger.warning("Capability %s hit max_iterations=%d.", self.name, self.max_iterations)
 
+        # Persist token usage
+        if total_prompt_tokens + total_completion_tokens > 0:
+            self._record_usage(conn, task, provider_id, model, total_prompt_tokens, total_completion_tokens)
+
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _record_usage(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+        provider_id: str,
+        model_id: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        """Write accumulated token usage for this task execution to task_costs."""
+        total = prompt_tokens + completion_tokens
+        conn.execute(
+            """
+            INSERT INTO task_costs
+                (cost_id, task_id, provider_id, model_id,
+                 prompt_tokens, completion_tokens, total_tokens,
+                 estimated_cost_usd, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+            """,
+            (
+                new_id("cost"),
+                task["task_id"],
+                provider_id,
+                model_id,
+                prompt_tokens,
+                completion_tokens,
+                total,
+                utc_now_iso(),
+            ),
+        )
+        conn.commit()
+        logger.debug(
+            "Task %s: %s/%s — %d prompt + %d completion = %d tokens.",
+            task["task_id"], provider_id, model_id,
+            prompt_tokens, completion_tokens, total,
+        )
 
     def _resolve_native_tools(self) -> list[Any]:
         resolved = []

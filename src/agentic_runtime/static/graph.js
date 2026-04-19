@@ -1,20 +1,23 @@
-(function () {
-  "use strict";
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm";
+import { dagStratify, sugiyama, layeringSimplex, decrossOpt, decrossTwoLayer, coordCenter }
+    from "https://cdn.jsdelivr.net/npm/d3-dag@0.11.3/+esm";
 
-  var dataEl = document.getElementById("graph-data");
-  var wrap   = document.getElementById("cy");
-  if (!dataEl || !wrap) return;
+var dataEl = document.getElementById("graph-data");
+var wrap   = document.getElementById("cy");
+if (!dataEl || !wrap) throw new Error("graph: no graph-data or cy element");
 
-  var graph;
-  try {
-    graph = JSON.parse(dataEl.textContent || '{"nodes":[],"edges":[]}');
-  } catch (_) { return; }
+var graph;
+try {
+  graph = JSON.parse(dataEl.textContent || '{"nodes":[],"edges":[]}');
+} catch (_) { throw new Error("graph: invalid JSON in graph-data"); }
 
-  if (!graph.nodes || !graph.nodes.length) {
-    wrap.innerHTML = '<p class="graph-empty">No project tasks yet — submit a goal and let the planner build the DAG.</p>';
-    return;
-  }
+if (!graph.nodes || !graph.nodes.length) {
+  wrap.innerHTML = '<p class="graph-empty">No project tasks yet — submit a goal and let the planner build the DAG.</p>';
+} else {
+  renderGraph(graph);
+}
 
+function renderGraph(graph) {
   // ── Node dimensions & spacing ─────────────────────────────────────────────
   var NW   = 224;   // node card width
   var NH   = 76;    // node card height
@@ -41,38 +44,38 @@
 
   var stratData = graph.nodes.map(function (n) {
     return {
-      id:       n.task_id,
+      id:        n.task_id,
       parentIds: parentMap[n.task_id] || [],
-      taskId:   n.task_id,
-      title:    n.title     || "",
-      state:    n.state     || "created",
-      capName:  n.capability_name || "",
+      taskId:    n.task_id,
+      title:     n.title     || "",
+      state:     n.state     || "created",
+      capName:   n.capability_name || "",
     };
   });
 
   // ── d3-dag: Sugiyama layout ───────────────────────────────────────────────
   var dag;
   try {
-    dag = d3dag.dagStratify()(stratData);
+    dag = dagStratify()(stratData);
   } catch (err) {
     wrap.innerHTML = '<p class="graph-empty">DAG build error: ' + (err.message || err) + '</p>';
     return;
   }
 
   function runLayout(decross) {
-    return d3dag.sugiyama()
-      .layering(d3dag.layeringSimplex())
+    return sugiyama()
+      .layering(layeringSimplex())
       .decross(decross)
-      .coord(d3dag.coordCenter())
+      .coord(coordCenter())
       .nodeSize([NW + HGAP, NH + VGAP])(dag);
   }
 
   var dims;
   try {
-    dims = runLayout(d3dag.decrossOpt());
+    dims = runLayout(decrossOpt());
   } catch (_) {
     try {
-      dims = runLayout(d3dag.decrossTwoLayer());
+      dims = runLayout(decrossTwoLayer());
     } catch (err2) {
       wrap.innerHTML = '<p class="graph-empty">Layout failed: ' + (err2.message || err2) + '</p>';
       return;
@@ -289,5 +292,4 @@
       .attr("fill",    c.stroke)
       .attr("opacity", 0.90);
   });
-
-})();
+}

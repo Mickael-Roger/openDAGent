@@ -17,6 +17,14 @@ MIGRATIONS = [
         "SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'task_kind'",
         "ALTER TABLE tasks ADD COLUMN task_kind TEXT NOT NULL DEFAULT 'project'",
     ),
+    (
+        "SELECT 1 FROM pragma_table_info('task_costs') WHERE name = 'model_id'",
+        "ALTER TABLE task_costs ADD COLUMN model_id TEXT",
+    ),
+    (
+        "SELECT 1 FROM pragma_table_info('task_costs') WHERE name = 'provider_id'",
+        "ALTER TABLE task_costs ADD COLUMN provider_id TEXT",
+    ),
 ]
 
 SCHEMA_STATEMENTS = (

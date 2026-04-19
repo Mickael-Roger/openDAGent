@@ -281,6 +281,19 @@ def get_task_detail_data(
     upstream_links = _task_neighbors(connection, task_row["project_id"], task_id, direction="upstream")
     downstream_links = _task_neighbors(connection, task_row["project_id"], task_id, direction="downstream")
 
+    costs = [
+        dict(row)
+        for row in connection.execute(
+            """
+            SELECT provider_id, model_id, prompt_tokens, completion_tokens, total_tokens, created_at
+            FROM task_costs
+            WHERE task_id = ?
+            ORDER BY created_at ASC
+            """,
+            (task_id,),
+        ).fetchall()
+    ]
+
     return {
         "page_title": task_row["title"],
         "task": dict(task_row),
@@ -291,6 +304,7 @@ def get_task_detail_data(
         "attempts": attempts,
         "upstream_links": upstream_links,
         "downstream_links": downstream_links,
+        "costs": costs,
     }
 
 

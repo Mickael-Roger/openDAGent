@@ -61,7 +61,14 @@
                     <strong>{{ artifact.artifact_key }}</strong>
                     <p>{{ artifact.type }} · v{{ artifact.version }}</p>
                 </div>
-                <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
+                <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+                    <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
+                    <button class="btn-ghost artifact-view-btn" style="padding:6px 12px;font-size:0.8rem"
+                            data-artifact-id="{{ artifact.artifact_id }}">View</button>
+                    <a class="btn-ghost" style="padding:6px 12px;font-size:0.8rem"
+                       href="/api/artifacts/{{ artifact.artifact_id }}/content"
+                       download>Download</a>
+                </div>
             </article>
             {% endfor %}
         </div>
@@ -104,4 +111,49 @@
         </div>
     </article>
 </section>
+
+{% if costs %}
+<section class="panel">
+    <div class="panel-header"><h2>Token Usage</h2></div>
+    <table class="detail-table">
+        <thead>
+            <tr>
+                <th>Provider</th>
+                <th>Model</th>
+                <th style="text-align:right">Prompt</th>
+                <th style="text-align:right">Completion</th>
+                <th style="text-align:right">Total</th>
+                <th>Recorded at</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in costs %}
+            <tr>
+                <td>{{ c.provider_id or '—' }}</td>
+                <td><code>{{ c.model_id or '—' }}</code></td>
+                <td style="text-align:right">{{ "{:,}".format(c.prompt_tokens) }}</td>
+                <td style="text-align:right">{{ "{:,}".format(c.completion_tokens) }}</td>
+                <td style="text-align:right"><strong>{{ "{:,}".format(c.total_tokens) }}</strong></td>
+                <td style="color:var(--muted);font-size:0.82rem">{{ c.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2" style="font-weight:600">Total</td>
+                <td style="text-align:right;font-weight:600">{{ "{:,}".format(costs | sum(attribute='prompt_tokens')) }}</td>
+                <td style="text-align:right;font-weight:600">{{ "{:,}".format(costs | sum(attribute='completion_tokens')) }}</td>
+                <td style="text-align:right;font-weight:600">{{ "{:,}".format(costs | sum(attribute='total_tokens')) }}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+</section>
+{% endif %}
+
+<script>
+    document.querySelectorAll('.artifact-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => openArtifactModal(btn.dataset.artifactId));
+    });
+</script>
 {% endblock %}
