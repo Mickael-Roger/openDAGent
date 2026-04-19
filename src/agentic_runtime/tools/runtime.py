@@ -62,8 +62,8 @@ class CreateTask(Tool):
             """
             INSERT INTO tasks
                 (task_id, goal_id, project_id, capability_name, title, description,
-                 state, priority, retry_count, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'created', ?, 0, ?, ?)
+                 state, priority, retry_count, allowed_paths_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'created', ?, 0, '[]', ?, ?)
             """,
             (
                 task_id,
