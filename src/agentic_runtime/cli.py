@@ -144,6 +144,15 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
     user_caps_dir = config.runtime_workdir() / "config" / "capabilities"
     extra_dirs = [str(user_caps_dir)] if user_caps_dir.exists() else None
 
+    # ── Email tool initialisation ────────────────────────────────────────────
+    email_cfg = config.email
+    if email_cfg.get("enabled", False):
+        import os
+        from .tools import email as _email_tools
+        os.environ["OPENDAGENT_EMAIL_ENABLED"] = "1"
+        _email_tools.configure(email_cfg)
+        log.info("Email tools enabled (IMAP: %s).", email_cfg.get("imap", {}).get("host", "?"))
+
     # ── opencode availability check ──────────────────────────────────────────
     opencode_cfg = config.opencode
     opencode_enabled = opencode_cfg.get("enabled", True)

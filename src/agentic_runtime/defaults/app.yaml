@@ -17,12 +17,6 @@ inputs:
     enabled: false
     bot_token_env: OPENDAGENT_DISCORD_TOKEN
     allowed_guild_ids: []
-  email:
-    enabled: false
-    imap_host: imap.example.com
-    smtp_host: smtp.example.com
-    username: agent@example.com
-    password_env: OPENDAGENT_EMAIL_PASSWORD
   api:
     enabled: true
     bind_host: 127.0.0.1
@@ -130,6 +124,22 @@ opencode:
   # Optional: force a specific model for coding tasks (e.g. "anthropic/claude-opus-4-5").
   # If omitted, the first code-capable model in the llm section is used automatically.
   # model_hint: anthropic/claude-opus-4-5
+
+email:
+  enabled: false
+  address: ""
+  type: imap
+  smtp:
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    type: starttls
+  imap:
+    host: ""
+    port: 993
+    username: ""
+    password: ""
 
 mcp:
   servers: []

@@ -52,6 +52,9 @@ def _load_builtins() -> None:
     from .web import WebFetch, WebSearch
     from .image import GenerateImage
     from .opencode_tool import OpencodeTool
+    from .email import (
+        ListEmails, ReadEmail, SendEmail, SearchEmails, MoveEmail, DeleteEmail,
+    )
 
     _register(
         PostMessage(),
@@ -65,6 +68,12 @@ def _load_builtins() -> None:
         WebSearch(),
         GenerateImage(),
         OpencodeTool(),
+        ListEmails(),
+        ReadEmail(),
+        SendEmail(),
+        SearchEmails(),
+        MoveEmail(),
+        DeleteEmail(),
     )
 
 

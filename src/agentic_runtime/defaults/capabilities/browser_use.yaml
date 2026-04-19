@@ -14,6 +14,11 @@ tools:
   - write_artifact
   - read_artifact
   - post_message
+  - list_emails
+  - read_email
+  - send_email
+  - search_emails
+  - move_email
 mcp_servers:
   - playwright
 system_prompt: |
@@ -47,6 +52,16 @@ system_prompt: |
   6. When you have gathered all required information or completed the task:
      - Write a structured summary as an artifact using write_artifact.
      - Post a concise message to the user with the key findings using post_message.
+
+  ## Email tools (when email is configured)
+  You also have access to email tools that complement browser automation:
+  - list_emails / read_email: read incoming emails (e.g. confirmation codes, verification links)
+  - send_email: send an email (e.g. contact forms, account registration follow-ups)
+  - search_emails: find a specific email (e.g. look for a verification code after sign-up)
+  - move_email: organize emails into folders after processing
+
+  Use these when a web task involves an email step — for example: registering on a
+  website, receiving a verification link, or submitting a contact form.
 
   ## Guidelines
   - Always take a screenshot before deciding which element to interact with.

@@ -64,15 +64,6 @@ inputs:
     # allowed_guild_ids:
     #   - 123456789012345678
 
-  # Email polling — submit tasks by sending an email to the configured address.
-  email:
-    enabled: false
-    imap_host: imap.example.com
-    smtp_host: smtp.example.com
-    username: agent@example.com
-    # Name of the environment variable that holds the email password.
-    password_env: OPENDAGENT_EMAIL_PASSWORD
-
 
 # ── LLM providers ─────────────────────────────────────────────────────────────
 # Define one or more LLM providers and their models.
@@ -259,6 +250,35 @@ git:
 
   # Directory where per-task sandboxed worktrees are checked out (relative to workdir).
   sandboxes_dir: sandboxes
+
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+# Configures the built-in email tools (list, read, send, search, move, delete).
+# When enabled, the manage_email capability and email tools in browser_use become
+# available. The type field is reserved for future providers (e.g. gmail).
+email:
+  # Set to false to disable all email tools.
+  enabled: false
+
+  # The email address used as the sender identity.
+  address: agent@example.com
+
+  # Protocol type — only "imap" is supported for now (gmail support planned).
+  type: imap
+
+  smtp:
+    host: smtp.example.com
+    port: 587
+    username: agent@example.com
+    password: ""
+    # Connection security: "starttls" (port 587, upgrades to TLS) or "tls" (port 465, implicit TLS).
+    type: starttls
+
+  imap:
+    host: imap.example.com
+    port: 993
+    username: agent@example.com
+    password: ""
 
 
 # ── Planner ───────────────────────────────────────────────────────────────────

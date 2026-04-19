@@ -53,6 +53,10 @@ class AppConfig:
         return self.data.get("mcp", {"servers": []})
 
     @property
+    def email(self) -> dict[str, Any]:
+        return self.data.get("email", {})
+
+    @property
     def opencode(self) -> dict[str, Any]:
         return self.data.get("opencode", {})
 
