@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Configuration</p>
+        <h1>Capabilities</h1>
+        <p class="subtitle">Built-in and user-defined execution capabilities. Each capability defines a system prompt, tools, MCP servers, and LLM feature requirements.</p>
+    </div>
+    <a href="{{ url_for('capability_new_form') }}" class="btn-primary" style="align-self:center">+ New Capability</a>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>All Capabilities</h2>
+        <span style="color:var(--muted);font-size:0.85rem">{{ capabilities|length }} registered</span>
+    </div>
+
+    {% if capabilities %}
+    <div class="cap-list">
+        {% for cap in capabilities %}
+        <div class="cap-row">
+            <div class="cap-row-main">
+                <div class="cap-row-title">
+                    <a href="{{ url_for('capability_detail', capability_name=cap.name) }}" class="cap-name">{{ cap.name }}</a>
+                    {% if cap.is_user %}
+                    <span class="cap-badge cap-badge-user">user</span>
+                    {% else %}
+                    <span class="cap-badge cap-badge-builtin">built-in</span>
+                    {% endif %}
+                    <span class="pill pill-{{ 'done' if cap.enabled else 'cancelled' }}" style="font-size:0.68rem;padding:3px 8px">{{ 'enabled' if cap.enabled else 'disabled' }}</span>
+                </div>
+                {% if cap.description %}
+                <p class="cap-desc">{{ cap.description }}</p>
+                {% endif %}
+                <div class="cap-meta">
+                    <span class="cap-tag risk-{{ cap.risk_level }}">{{ cap.risk_level }}</span>
+                    {% for t in cap.tools %}<span class="cap-tag">{{ t }}</span>{% endfor %}
+                    {% for f in cap.llm_features %}<span class="cap-tag cap-tag-feature">{{ f }}</span>{% endfor %}
+                    {% for m in cap.mcp_servers %}<span class="cap-tag cap-tag-mcp">MCP: {{ m }}</span>{% endfor %}
+                </div>
+            </div>
+            <div class="cap-row-actions">
+                <a href="{{ url_for('capability_detail', capability_name=cap.name) }}" class="btn-ghost" style="padding:6px 14px;font-size:0.8rem">
+                    {% if cap.is_user %}Edit{% else %}View{% endif %}
+                </a>
+                {% if cap.is_user %}
+                <button class="btn-danger btn-sm delete-cap-btn" data-name="{{ cap.name }}">Delete</button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No capabilities registered yet.</p>
+    </div>
+    {% endif %}
+</section>
+
+<script>
+    document.querySelectorAll('.delete-cap-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (!confirm(`Delete capability "${btn.dataset.name}"?`)) return;
+            const res = await fetch(`/api/capabilities/${btn.dataset.name}`, { method: 'DELETE' });
+            if (res.ok) {
+                btn.closest('.cap-row').remove();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || 'Failed to delete capability.');
+            }
+        });
+    });
+</script>
+{% endblock %}

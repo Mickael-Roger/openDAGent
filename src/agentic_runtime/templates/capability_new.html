@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Capabilities</p>
+        <h1>New Capability</h1>
+        <p class="subtitle">Define a custom capability with a system prompt, tools, MCP servers, and LLM requirements.</p>
+    </div>
+    <a href="{{ url_for('capabilities_list') }}" class="btn-ghost" style="align-self:center">Cancel</a>
+</section>
+
+<section class="panel">
+    <form id="cap-form">
+        <p id="form-error" class="form-error" hidden></p>
+
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label>Name <span style="color:#ffc4cf">*</span></label>
+                <input type="text" name="name" placeholder="my_capability" required
+                       pattern="[a-z0-9_]+" title="Lowercase letters, digits, and underscores only">
+                <small class="field-hint">Lowercase, underscores only (e.g. web_researcher)</small>
+            </div>
+            <div class="form-field">
+                <label>Risk Level</label>
+                <select name="risk_level" class="form-select">
+                    {% for r in risk_levels %}
+                    <option value="{{ r }}" {% if r == 'low' %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-field">
+            <label>Description</label>
+            <input type="text" name="description" placeholder="One-line summary of what this capability does">
+        </div>
+
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label>Max Iterations</label>
+                <input type="number" name="max_iterations" value="20" min="1" max="100">
+                <small class="field-hint">Maximum LLM loop iterations before the task is forced to complete</small>
+            </div>
+        </div>
+
+        <div class="form-field">
+            <label>System Prompt <span style="color:#ffc4cf">*</span></label>
+            <textarea name="system_prompt" rows="10"
+                      placeholder="You are an agent that... Describe the role, context, and instructions for the LLM." required></textarea>
+        </div>
+
+        <div class="form-field">
+            <label>Tools</label>
+            <small class="field-hint">Python tools available to this capability</small>
+            <div class="checkbox-grid">
+                {% for tool in available_tools %}
+                <label class="checkbox-item">
+                    <input type="checkbox" name="tools" value="{{ tool }}">
+                    <span>{{ tool }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if available_mcp_servers %}
+        <div class="form-field">
+            <label>MCP Servers</label>
+            <small class="field-hint">Model Context Protocol servers this capability can use</small>
+            <div class="checkbox-grid">
+                {% for srv in available_mcp_servers %}
+                <label class="checkbox-item">
+                    <input type="checkbox" name="mcp_servers" value="{{ srv }}">
+                    <span>{{ srv }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="form-field">
+            <label>MCP Servers</label>
+            <div class="empty-state" style="padding:14px 18px">
+                <p style="margin:0;font-size:0.88rem">No MCP servers configured. Add servers under the <code>mcp.servers</code> key in your <code>config.yaml</code>.</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-field">
+            <label>LLM Feature Requirements</label>
+            <small class="field-hint">Specify capabilities the LLM must support for this capability to work correctly</small>
+            <div class="checkbox-grid">
+                {% for feat in llm_features %}
+                <label class="checkbox-item">
+                    <input type="checkbox" name="llm_features" value="{{ feat }}">
+                    <span class="feat-label feat-{{ feat }}">{{ feat }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px">
+            <a href="{{ url_for('capabilities_list') }}" class="btn-ghost">Cancel</a>
+            <button type="submit" class="btn-primary">Create Capability</button>
+        </div>
+    </form>
+</section>
+
+<script>
+    document.getElementById('cap-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('form-error');
+        errEl.hidden = true;
+
+        const fd = new FormData(e.target);
+        const body = {
+            name:           fd.get('name'),
+            description:    fd.get('description'),
+            risk_level:     fd.get('risk_level'),
+            system_prompt:  fd.get('system_prompt'),
+            max_iterations: parseInt(fd.get('max_iterations'), 10),
+            tools:          fd.getAll('tools'),
+            mcp_servers:    fd.getAll('mcp_servers'),
+            llm_features:   fd.getAll('llm_features'),
+        };
+
+        const res = await fetch('/api/capabilities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+            const { name } = await res.json();
+            window.location.href = `/capabilities/${name}`;
+        } else {
+            const err = await res.json().catch(() => ({}));
+            errEl.textContent = err.detail || 'Failed to create capability.';
+            errEl.hidden = false;
+        }
+    });
+</script>
+{% endblock %}

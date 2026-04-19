@@ -67,12 +67,24 @@ a {
   color: var(--muted);
 }
 
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .sidebar-nav a {
   display: block;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(17, 28, 48, 0.55);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sidebar-nav a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .content {
@@ -668,6 +680,178 @@ a {
 .chat-input-area textarea:focus {
   border-color: var(--accent);
 }
+
+/* ── Capabilities ───────────────────────────────────────── */
+
+.cap-list {
+  display: grid;
+  gap: 12px;
+}
+
+.cap-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 18px;
+  background: rgba(17, 28, 48, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.cap-row-main { flex: 1; min-width: 0; }
+
+.cap-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.cap-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.cap-name:hover { color: var(--accent); }
+
+.cap-desc {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 0 0 10px;
+}
+
+.cap-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.cap-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 9px;
+  text-transform: uppercase;
+}
+
+.cap-badge-builtin {
+  background: rgba(124, 156, 255, 0.14);
+  color: #c9d6ff;
+  border: 1px solid rgba(124, 156, 255, 0.25);
+}
+
+.cap-badge-user {
+  background: rgba(69, 208, 184, 0.14);
+  color: #9ff5e4;
+  border: 1px solid rgba(69, 208, 184, 0.25);
+}
+
+.cap-tag {
+  background: rgba(17, 28, 48, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 2px 8px;
+}
+
+.cap-tag-feature {
+  background: rgba(255, 196, 92, 0.1);
+  border-color: rgba(255, 196, 92, 0.25);
+  color: #ffe5b8;
+}
+
+.cap-tag-mcp {
+  background: rgba(69, 208, 184, 0.08);
+  border-color: rgba(69, 208, 184, 0.2);
+  color: #9ff5e4;
+}
+
+.risk-low      { background: rgba(69, 208, 184, 0.12); color: #9ff5e4; border: 1px solid rgba(69, 208, 184, 0.25); }
+.risk-medium   { background: rgba(255, 196, 92, 0.12); color: #ffe5b8; border: 1px solid rgba(255, 196, 92, 0.25); }
+.risk-high     { background: rgba(255, 130, 92, 0.14); color: #ffd4b8; border: 1px solid rgba(255, 130, 92, 0.3); }
+.risk-critical { background: rgba(255, 92, 123, 0.14); color: #ffc4cf; border: 1px solid rgba(255, 92, 123, 0.3); }
+
+.cap-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+
+/* Forms */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.form-select {
+  appearance: none;
+  background: rgba(17, 28, 48, 0.72) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239bb0d1' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  outline: none;
+  padding: 12px 40px 12px 16px;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.form-select:focus { border-color: var(--accent); }
+
+.field-hint {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 5px;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checkbox-item {
+  align-items: center;
+  background: rgba(17, 28, 48, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  transition: border-color 0.15s;
+}
+
+.checkbox-item:hover { border-color: var(--accent); }
+
+.checkbox-item input[type=checkbox] {
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  height: 15px;
+  width: 15px;
+}
+
+.checkbox-item:has(input:checked) {
+  background: rgba(124, 156, 255, 0.1);
+  border-color: rgba(124, 156, 255, 0.4);
+}
+
+.feat-label { font-weight: 600; }
+.feat-vision    { color: #c9d6ff; }
+.feat-reasoning { color: #ffe5b8; }
+.feat-json_mode { color: #9ff5e4; }
+.feat-long_context { color: #d4b8ff; }
+.feat-code      { color: #b8ffd4; }
 
 /* ── Artifact viewer modal ──────────────────────────────── */
 

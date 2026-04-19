@@ -129,7 +129,12 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
     start_ingress_thread(str(db_path))
     start_worker_thread(str(db_path), app_config)
 
-    app = create_app(str(db_path), extra_capability_dirs=extra_dirs)
+    app = create_app(
+        str(db_path),
+        extra_capability_dirs=extra_dirs,
+        user_caps_dir=str(user_caps_dir),
+        mcp_config=config.mcp,
+    )
     uvicorn = import_module("uvicorn")
     uvicorn.run(app, host=host, port=port)
 
