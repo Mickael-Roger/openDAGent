@@ -35,6 +35,28 @@ Install all supported browsers if you need cross-browser testing:
 npx playwright install
 ```
 
+#### Debian / Ubuntu
+
+On Debian-based systems, Chromium requires system libraries that are not installed
+by default. Use the `--with-deps` flag to install both the browser and its OS-level
+dependencies (libnss3, libatk1.0, libgbm1, etc.) in one step:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+If you see an error like:
+
+```
+Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+```
+
+it means no usable Chromium binary is present. Run the command above to fix it.
+
+> **Tip:** If you are running in a headless server or container without a display
+> server, Playwright will automatically use headless mode. No extra configuration
+> is needed.
+
 ---
 
 ## Configure openDAGent

@@ -182,7 +182,7 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
         )
     elif opencode_enabled:
         from .opencode.server import init_server, shutdown_server
-        oc_port = int(opencode_cfg.get("port", 9180))
+        oc_port = int(opencode_cfg.get("port", 0))
         oc_model_hint = opencode_cfg.get("model_hint") or None
         init_server(config.llm, port=oc_port, model_hint=oc_model_hint)
         atexit.register(shutdown_server)

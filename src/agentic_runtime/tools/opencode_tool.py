@@ -39,8 +39,10 @@ class OpencodeTool(Tool):
 
     def run(self, conn: sqlite3.Connection, task: dict[str, Any], **kwargs: Any) -> str:
         server = get_server()
-        if server is None or not server.is_alive():
-            return "ERROR: opencode server is not running. Coding capabilities are unavailable."
+        if server is None:
+            return "ERROR: opencode server was not initialised. Check startup logs."
+        if not server.is_alive():
+            return "ERROR: opencode server process has exited. Coding capabilities are unavailable."
 
         prompt: str = kwargs["prompt"]
         working_directory: str | None = kwargs.get("working_directory")
@@ -53,10 +55,25 @@ class OpencodeTool(Tool):
         session_id: str | None = None
         try:
             session_id = server.create_session()
+            logger.info(
+                "opencode session %s: sending prompt (%d chars) for task %s",
+                session_id, len(full_prompt), task.get("task_id", "?"),
+            )
             reply = server.send_message(session_id, full_prompt)
+            if reply:
+                logger.info(
+                    "opencode session %s: received reply (%d chars)",
+                    session_id, len(reply),
+                )
+            else:
+                logger.warning("opencode session %s: empty reply", session_id)
             return reply or "(no response from opencode)"
         except Exception as exc:
-            logger.error("opencode tool error: %s", exc)
+            logger.error(
+                "opencode tool error for task %s: %s",
+                task.get("task_id", "?"), exc,
+                exc_info=True,
+            )
             return f"ERROR: opencode request failed: {exc}"
         finally:
             if session_id is not None:

@@ -2,6 +2,8 @@
 Manages a persistent `opencode serve` subprocess and exposes a thin REST client
 around its session/message API.
 
+opencode API reference: https://opencode.ai/docs/server
+
 Lifecycle:
   start()   — launch `opencode serve --port <port>` with OPENCODE_CONFIG_CONTENT injected
   stop()    — terminate the subprocess
@@ -25,21 +27,22 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Default port for opencode serve
-DEFAULT_PORT = 9180
+# Default port when explicitly configured; 0 means auto-assign a free port.
+DEFAULT_PORT = 0
 
 
 def _build_opencode_config(llm_config: dict[str, Any], model_hint: str | None = None) -> dict[str, Any]:
     """
     Map openDAGent's llm_config into an opencode JSON config dict.
 
-    opencode config format:
+    opencode config format (https://opencode.ai/docs/config):
     {
+      "$schema": "https://opencode.ai/config.json",
       "model": "<provider>/<model-id>",
-      "providers": {
+      "provider": {
         "<provider-id>": {
           "apiKey": "...",
-          "baseURL": "..."   # for custom endpoints
+          "baseURL": "..."
         }
       }
     }
@@ -87,6 +90,7 @@ def _build_opencode_config(llm_config: dict[str, Any], model_hint: str | None = 
         default_model = first_model
     else:
         # Fall back to first model of any kind
+        default_model = ""
         for provider in llm_config.get("providers", []):
             pid = provider.get("id", provider.get("type", ""))
             for model in provider.get("models", []):
@@ -95,14 +99,14 @@ def _build_opencode_config(llm_config: dict[str, Any], model_hint: str | None = 
             else:
                 continue
             break
-        else:
-            default_model = ""
 
-    config: dict[str, Any] = {}
+    config: dict[str, Any] = {
+        "$schema": "https://opencode.ai/config.json",
+    }
     if default_model:
         config["model"] = default_model
     if providers_out:
-        config["providers"] = providers_out
+        config["provider"] = providers_out
 
     return config
 
@@ -113,7 +117,15 @@ class OpencodeServer:
     def __init__(self, port: int = DEFAULT_PORT) -> None:
         self.port = port
         self._process: subprocess.Popen[bytes] | None = None
-        self._base_url = f"http://127.0.0.1:{port}"
+        self._base_url = f"http://127.0.0.1:{port}" if port else ""
+
+    @staticmethod
+    def _find_free_port() -> int:
+        """Bind to port 0 and let the OS assign a free port."""
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -121,23 +133,34 @@ class OpencodeServer:
         """
         Start `opencode serve` with the given LLM config injected via
         OPENCODE_CONFIG_CONTENT environment variable.
+
+        If port is 0, a free port is auto-assigned so multiple instances
+        can run concurrently without conflicts.
         """
         if self._process is not None:
             logger.warning("opencode server already running (pid %d)", self._process.pid)
             return
 
+        # Auto-assign a free port if none was explicitly configured
+        if self.port == 0:
+            self.port = self._find_free_port()
+            self._base_url = f"http://127.0.0.1:{self.port}"
+            logger.info("Auto-assigned port %d for opencode serve.", self.port)
+
         config_dict = _build_opencode_config(llm_config, model_hint)
+        config_json = json.dumps(config_dict)
         env = os.environ.copy()
-        env["OPENCODE_CONFIG_CONTENT"] = json.dumps(config_dict)
+        env["OPENCODE_CONFIG_CONTENT"] = config_json
 
         cmd = ["opencode", "serve", "--port", str(self.port)]
         logger.info("Starting opencode serve on port %d ...", self.port)
+        logger.debug("opencode config: %s", config_json)
         try:
             self._process = subprocess.Popen(
                 cmd,
                 env=env,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
         except FileNotFoundError:
             logger.error("opencode binary not found; coding capabilities will be unavailable.")
@@ -147,12 +170,17 @@ class OpencodeServer:
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             if not self.is_alive():
-                logger.error("opencode serve exited unexpectedly during startup.")
+                stderr_output = self._read_stderr()
+                logger.error(
+                    "opencode serve exited unexpectedly during startup.%s",
+                    f" stderr: {stderr_output}" if stderr_output else "",
+                )
                 return
             try:
-                httpx.get(f"{self._base_url}/", timeout=1.0)
-                logger.info("opencode serve is ready on port %d.", self.port)
-                return
+                resp = httpx.get(f"{self._base_url}/global/health", timeout=1.0)
+                if resp.status_code == 200:
+                    logger.info("opencode serve is ready on port %d.", self.port)
+                    return
             except httpx.RequestError:
                 time.sleep(0.5)
 
@@ -174,46 +202,114 @@ class OpencodeServer:
             return False
         return self._process.poll() is None
 
+    def _read_stderr(self) -> str:
+        """Read available stderr from the subprocess (non-blocking)."""
+        if self._process is None or self._process.stderr is None:
+            return ""
+        try:
+            # Read what's available without blocking
+            import select
+            if select.select([self._process.stderr], [], [], 0.1)[0]:
+                return self._process.stderr.read(4096).decode("utf-8", errors="replace").strip()
+        except Exception:
+            pass
+        return ""
+
     # ── REST client ────────────────────────────────────────────────────────────
 
     def create_session(self) -> str:
         """Create a new opencode session; returns the session ID."""
-        resp = httpx.post(f"{self._base_url}/session", timeout=10.0)
-        resp.raise_for_status()
+        resp = httpx.post(
+            f"{self._base_url}/session",
+            json={},
+            timeout=10.0,
+        )
+        if resp.status_code != 200:
+            body = resp.text[:500]
+            logger.error("opencode create_session failed (%d): %s", resp.status_code, body)
+            resp.raise_for_status()
         data = resp.json()
-        return data["id"]
+        session_id = data.get("id", "")
+        if not session_id:
+            logger.error("opencode create_session returned no id: %s", json.dumps(data)[:500])
+            raise RuntimeError("opencode create_session returned no session id")
+        logger.debug("opencode session created: %s", session_id)
+        return session_id
 
     def send_message(self, session_id: str, text: str, timeout: float = 120.0) -> str:
         """
         Send a message to an existing session and wait for the complete reply.
         Returns the assistant's reply text.
+
+        opencode message API (https://opencode.ai/docs/server):
+          POST /session/:id/message
+          Body: { parts: [{ type: "text", text: "..." }], model?, agent?, ... }
+          Response: { info: Message, parts: Part[] }
         """
+        payload: dict[str, Any] = {
+            "parts": [{"type": "text", "text": text}],
+        }
+        logger.debug(
+            "opencode send_message session=%s text_len=%d",
+            session_id, len(text),
+        )
         resp = httpx.post(
             f"{self._base_url}/session/{session_id}/message",
-            json={"role": "user", "content": text},
+            json=payload,
             timeout=timeout,
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            body = resp.text[:1000]
+            logger.error(
+                "opencode send_message failed (%d) session=%s: %s",
+                resp.status_code, session_id, body,
+            )
+            resp.raise_for_status()
+
         data = resp.json()
-        # opencode returns the updated message list; extract last assistant message
-        messages = data if isinstance(data, list) else data.get("messages", [])
-        for msg in reversed(messages):
-            if msg.get("role") == "assistant":
-                content = msg.get("content", "")
-                if isinstance(content, list):
-                    # Content may be a list of blocks
-                    return "\n".join(
-                        block.get("text", "") for block in content
-                        if isinstance(block, dict) and block.get("type") == "text"
-                    )
+        return self._extract_reply_text(data)
+
+    @staticmethod
+    def _extract_reply_text(data: dict[str, Any]) -> str:
+        """
+        Extract the assistant reply text from an opencode message response.
+
+        Response format: { info: {...}, parts: [{ type: "text", text: "..." }, ...] }
+        """
+        parts = data.get("parts", [])
+        if isinstance(parts, list):
+            text_parts = []
+            for part in parts:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text_parts.append(part.get("text", ""))
+            if text_parts:
+                return "\n".join(text_parts)
+
+        # Fallback: try to extract from the info field or raw data
+        info = data.get("info", {})
+        if isinstance(info, dict):
+            content = info.get("content", "")
+            if content:
                 return str(content)
+
+        logger.warning(
+            "opencode: could not extract reply text from response keys=%s",
+            list(data.keys()),
+        )
         return ""
 
     def delete_session(self, session_id: str) -> None:
         """Delete an opencode session."""
         try:
-            resp = httpx.delete(f"{self._base_url}/session/{session_id}", timeout=10.0)
-            resp.raise_for_status()
+            resp = httpx.delete(
+                f"{self._base_url}/session/{session_id}",
+                timeout=10.0,
+            )
+            if resp.status_code >= 400:
+                logger.debug(
+                    "opencode delete_session %s returned %d",
+                    session_id, resp.status_code,
+                )
         except Exception as exc:
             logger.debug("Failed to delete opencode session %s: %s", session_id, exc)
 
