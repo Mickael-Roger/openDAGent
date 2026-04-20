@@ -156,7 +156,7 @@ def _run_server(db_path: Path, host: str, port: int, config: AppConfig) -> None:
     )
     log = logging.getLogger(__name__)
 
-    app_config = {"llm": config.llm, "mcp": config.mcp}
+    app_config = {"llm": config.llm, "mcp": config.mcp, "email": config.email}
     user_caps_dir = config.runtime_workdir() / "config" / "capabilities"
     extra_dirs = [str(user_caps_dir)] if user_caps_dir.exists() else None
 

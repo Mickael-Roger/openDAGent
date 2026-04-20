@@ -72,6 +72,7 @@ def _run_task(
             task,
             app_config.get("llm", {}),
             mcp_config=app_config.get("mcp", {}),
+            app_config=app_config,
         )
 
         now = utc_now_iso()

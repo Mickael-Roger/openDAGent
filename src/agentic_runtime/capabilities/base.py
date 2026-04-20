@@ -68,6 +68,7 @@ class BaseCapability:
         task: dict[str, Any],
         llm_config: dict[str, Any],
         mcp_config: dict[str, Any] | None = None,
+        app_config: dict[str, Any] | None = None,
     ) -> None:
         # Ensure the task has a workspace directory
         self._ensure_workspace(conn, task)
@@ -92,10 +93,10 @@ class BaseCapability:
                 from ..mcp.manager import MCPManager
                 with MCPManager(self.mcp_servers, mcp_config or {}) as mgr:
                     mcp_schemas, mcp_dispatch = mgr.tools()
-                    self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace)
+                    self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
                 return
 
-            self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace)
+            self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
 
     # ── Loop ──────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ class BaseCapability:
         mcp_schemas: list[dict[str, Any]],
         mcp_dispatch: dict[str, Any],
         trace: Any = None,
+        app_config: dict[str, Any] | None = None,
     ) -> None:
         provider, model, max_tokens = self._resolve_provider(llm_config)
         provider_id = str(provider.get("id", ""))
@@ -115,7 +117,7 @@ class BaseCapability:
         all_schemas = [t.schema() for t in native_tools] + mcp_schemas
 
         messages = self._restore_or_build_messages(conn, task)
-        system_prompt = self._build_system_prompt(conn, task)
+        system_prompt = self._build_system_prompt(conn, task, app_config)
 
         total_prompt_tokens = 0
         total_completion_tokens = 0
@@ -535,14 +537,25 @@ class BaseCapability:
         self,
         conn: sqlite3.Connection,
         task: dict[str, Any],
+        app_config: dict[str, Any] | None = None,
     ) -> str:
-        """Augment the capability system prompt with task-specific artifact contract.
+        """Augment the capability system prompt with task-specific context.
 
-        Queries the task's declared required_artifacts and produced_artifacts and
-        appends clear instructions so the LLM knows *exactly* which artifact keys
+        Injects the user's email identity (when email is enabled) and the
+        artifact production contract so the LLM knows which artifact keys
         it must read and write.
         """
         extra_sections: list[str] = []
+
+        # User identity (email)
+        email_cfg = (app_config or {}).get("email", {})
+        if email_cfg.get("enabled") and email_cfg.get("address"):
+            extra_sections.append(
+                f"\n## User Identity\n\n"
+                f"Your email address is **{email_cfg['address']}**. "
+                f"Use this address whenever a service asks for an email "
+                f"(sign-up forms, account verification, contact fields, etc.)."
+            )
 
         # Required (input) artifacts
         required_rows = conn.execute(
