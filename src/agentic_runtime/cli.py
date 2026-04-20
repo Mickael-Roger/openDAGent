@@ -10,6 +10,7 @@ import yaml
 from .capabilities import load_and_register
 from .config import AppConfig, load_app_config
 from .db import initialize_database
+from .tracing import init_trace_db
 
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "opendagent" / "config.yaml"
@@ -90,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
 
     db_path = _effective_db_path(config, workdir, args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Initialise trace database (separate from runtime DB)
+    trace_db = db_path.parent / "traces.db"
+    init_trace_db(trace_db)
 
     user_caps_dir = workdir / "config" / "capabilities"
     connection = initialize_database(db_path)

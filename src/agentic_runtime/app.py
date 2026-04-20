@@ -29,6 +29,7 @@ from .dashboard import (
     get_task_detail_data,
 )
 from .db import connect, initialize_database
+from .tracing import list_traces, get_trace
 
 try:
     from fastapi import Request as _FastAPIRequest
@@ -599,5 +600,23 @@ def create_app(
                 "default_model": default_model,
             },
         )
+
+    # ── Traces API ────────────────────────────────────────────────────────────
+
+    @app.get("/api/traces")
+    async def api_list_traces(
+        task_id: str | None = None,
+        project_id: str | None = None,
+        limit: int = 50,
+    ) -> Any:
+        traces = list_traces(task_id=task_id, project_id=project_id, limit=limit)
+        return JSONResponse(traces)
+
+    @app.get("/api/traces/{trace_id}")
+    async def api_get_trace(trace_id: str) -> Any:
+        trace = get_trace(trace_id)
+        if trace is None:
+            raise HTTPException(status_code=404, detail="Trace not found")
+        return JSONResponse(trace)
 
     return app

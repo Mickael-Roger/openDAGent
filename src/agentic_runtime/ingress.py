@@ -6,7 +6,7 @@ import time
 
 from .db import connect
 from .planner import create_chat_response_task, should_plan
-from .scheduler import queue_ready_tasks
+from .scheduler import queue_ready_tasks, unblock_completed_subtasks
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ def _process_active_goals(connection) -> None:
             logger.info("Creating chat_response task for goal %s", goal_id)
             create_chat_response_task(connection, project_id, goal_id)
 
+    unblock_completed_subtasks(connection)
     queue_ready_tasks(connection)
 
 

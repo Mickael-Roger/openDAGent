@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from pathlib import Path
@@ -7,8 +8,10 @@ from typing import Any
 
 from .. import llm as llm_mod
 from .. import tools as tools_mod
+from ..exceptions import TaskBlocked
 from ..ids import new_id
 from ..time import utc_now_iso
+from ..tracing import Tracer
 
 logger = logging.getLogger(__name__)
 
@@ -73,14 +76,26 @@ class BaseCapability:
         mcp_schemas: list[dict[str, Any]] = []
         mcp_dispatch: dict[str, Any] = {}
 
-        if self.mcp_servers:
-            from ..mcp.manager import MCPManager
-            with MCPManager(self.mcp_servers, mcp_config or {}) as mgr:
-                mcp_schemas, mcp_dispatch = mgr.tools()
-                self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch)
-            return
+        tracer = Tracer.current()
+        with tracer.trace(
+            task["task_id"],
+            goal_id=task.get("goal_id"),
+            project_id=task.get("project_id"),
+            capability=self.name,
+            attributes={
+                "capability.max_iterations": self.max_iterations,
+                "capability.risk_level": self.risk_level,
+                "task.title": task.get("title", ""),
+            },
+        ) as trace:
+            if self.mcp_servers:
+                from ..mcp.manager import MCPManager
+                with MCPManager(self.mcp_servers, mcp_config or {}) as mgr:
+                    mcp_schemas, mcp_dispatch = mgr.tools()
+                    self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace)
+                return
 
-        self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch)
+            self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace)
 
     # ── Loop ──────────────────────────────────────────────────────────────────
 
@@ -92,30 +107,58 @@ class BaseCapability:
         native_tools: list[Any],
         mcp_schemas: list[dict[str, Any]],
         mcp_dispatch: dict[str, Any],
+        trace: Any = None,
     ) -> None:
         provider, model, max_tokens = self._resolve_provider(llm_config)
         provider_id = str(provider.get("id", ""))
+        provider_type = str(provider.get("type", "openai"))
         all_schemas = [t.schema() for t in native_tools] + mcp_schemas
 
-        messages = self._build_initial_messages(conn, task)
+        messages = self._restore_or_build_messages(conn, task)
         system_prompt = self._build_system_prompt(conn, task)
 
         total_prompt_tokens = 0
         total_completion_tokens = 0
 
-        for iteration in range(self.max_iterations):
-            response = llm_mod.chat(
-                messages,
-                provider,
-                model,
-                system=system_prompt,
-                tools=all_schemas if all_schemas else None,
-                max_tokens=max_tokens,
-            )
+        if trace is not None:
+            trace.attributes["llm.provider"] = provider_id
+            trace.attributes["llm.model"] = model
+            trace.attributes["llm.provider_type"] = provider_type
 
-            if response.usage:
-                total_prompt_tokens     += response.usage.get("prompt_tokens", 0)
-                total_completion_tokens += response.usage.get("completion_tokens", 0)
+        for iteration in range(self.max_iterations):
+            # ── LLM call span ────────────────────────────────────────────
+            llm_attrs: dict[str, Any] = {
+                "llm.provider": provider_id,
+                "llm.model": model,
+                "llm.max_tokens": max_tokens,
+                "llm.iteration": iteration,
+                "llm.message_count": len(messages),
+                "llm.tool_count": len(all_schemas) if all_schemas else 0,
+            }
+
+            with trace.span("llm_call", kind="llm_call", attributes=llm_attrs) as llm_span:
+                response = llm_mod.chat(
+                    messages,
+                    provider,
+                    model,
+                    system=system_prompt,
+                    tools=all_schemas if all_schemas else None,
+                    max_tokens=max_tokens,
+                )
+
+                if response.usage:
+                    prompt_toks = response.usage.get("prompt_tokens", 0)
+                    completion_toks = response.usage.get("completion_tokens", 0)
+                    total_prompt_tokens += prompt_toks
+                    total_completion_tokens += completion_toks
+                    llm_span.set_attribute("llm.tokens.prompt", prompt_toks)
+                    llm_span.set_attribute("llm.tokens.completion", completion_toks)
+                    llm_span.set_attribute("llm.tokens.total", prompt_toks + completion_toks)
+
+                llm_span.set_attribute("llm.response.is_final", response.is_final)
+                llm_span.set_attribute("llm.response.tool_call_count", len(response.tool_calls))
+                if response.content:
+                    llm_span.set_attribute("llm.response.content_length", len(response.content))
 
             if response.is_final:
                 if response.content:
@@ -134,7 +177,35 @@ class BaseCapability:
 
             # Execute each tool call and append results
             for tc in response.tool_calls:
-                result = self._dispatch(tc, native_tools, mcp_dispatch, conn, task)
+                tool_attrs = {
+                    "tool.name": tc.name,
+                    "tool.call_id": tc.id,
+                    "tool.iteration": iteration,
+                }
+                with trace.span(f"tool:{tc.name}", kind="tool_call", attributes=tool_attrs) as tool_span:
+                    try:
+                        result = self._dispatch(tc, native_tools, mcp_dispatch, conn, task)
+                    except TaskBlocked as exc:
+                        # Save conversation state so the task can resume later.
+                        # Include a synthetic tool result so the LLM knows what happened.
+                        messages.append({
+                            "role": "tool_result",
+                            "tool_call_id": tc.id,
+                            "content": (
+                                f"Subtask spawned (id={exc.child_task_id}). "
+                                "This task is now BLOCKED until the subtask completes. "
+                                "You will resume with the subtask result."
+                            ),
+                        })
+                        self._save_suspended_state(conn, task, messages)
+                        tool_span.set_attribute("tool.blocked_by", exc.child_task_id)
+                        raise
+                    tool_span.set_attribute("tool.result_length", len(result))
+                    if len(result) <= 500:
+                        tool_span.set_attribute("tool.result_preview", result)
+                    else:
+                        tool_span.set_attribute("tool.result_preview", result[:500] + "…")
+
                 logger.debug("Tool %s → %s", tc.name, result[:120])
                 messages.append({
                     "role": "tool_result",
@@ -143,6 +214,12 @@ class BaseCapability:
                 })
         else:
             logger.warning("Capability %s hit max_iterations=%d.", self.name, self.max_iterations)
+
+        # Record totals on the trace
+        if trace is not None:
+            trace.attributes["llm.tokens.total_prompt"] = total_prompt_tokens
+            trace.attributes["llm.tokens.total_completion"] = total_completion_tokens
+            trace.attributes["llm.iterations"] = min(iteration + 1, self.max_iterations) if self.max_iterations > 0 else 0
 
         # Persist token usage
         if total_prompt_tokens + total_completion_tokens > 0:
@@ -313,6 +390,120 @@ class BaseCapability:
 
         return messages
 
+    def _restore_or_build_messages(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Load saved conversation if this task is resuming from a blocked state,
+        otherwise build fresh initial messages."""
+        row = conn.execute(
+            "SELECT suspended_state_json, blocked_by_task_id FROM tasks WHERE task_id = ?",
+            (task["task_id"],),
+        ).fetchone()
+
+        suspended_json = row["suspended_state_json"] if row else None
+        if not suspended_json:
+            return self._build_initial_messages(conn, task)
+
+        # Restore saved messages
+        messages: list[dict[str, Any]] = json.loads(suspended_json)
+
+        # Clear the suspended state so we don't reload it on retry
+        conn.execute(
+            "UPDATE tasks SET suspended_state_json = NULL, blocked_by_task_id = NULL, updated_at = ? WHERE task_id = ?",
+            (utc_now_iso(), task["task_id"]),
+        )
+        conn.commit()
+
+        # Inject subtask result as a continuation message
+        child_task_id = row["blocked_by_task_id"]
+        if child_task_id:
+            child_summary = self._get_subtask_result(conn, task, child_task_id)
+            messages.append({
+                "role": "user",
+                "content": child_summary,
+            })
+
+        logger.info("Task %s resuming from blocked state with %d saved messages.", task["task_id"], len(messages))
+        return messages
+
+    def _get_subtask_result(
+        self,
+        conn: sqlite3.Connection,
+        parent_task: dict[str, Any],
+        child_task_id: str,
+    ) -> str:
+        """Build a summary of the completed subtask for injection into the parent conversation."""
+        child = conn.execute(
+            "SELECT task_id, title, state, capability_name FROM tasks WHERE task_id = ?",
+            (child_task_id,),
+        ).fetchone()
+        if child is None:
+            return f"[Subtask {child_task_id} not found — it may have been deleted.]"
+
+        state = child["state"]
+        title = child["title"]
+
+        if state == "failed":
+            # Fetch error from the latest attempt
+            attempt = conn.execute(
+                "SELECT error_message FROM task_attempts WHERE task_id = ? ORDER BY started_at DESC LIMIT 1",
+                (child_task_id,),
+            ).fetchone()
+            error = attempt["error_message"] if attempt else "unknown error"
+            return (
+                f"[Subtask FAILED]\n"
+                f"Title: {title}\n"
+                f"Error: {error}\n"
+                f"You must handle this failure — retry, work around it, or report the issue."
+            )
+
+        # Collect any artifacts produced by the child
+        artifacts = conn.execute(
+            """
+            SELECT artifact_key, value_json
+            FROM artifacts
+            WHERE produced_by_task_id = ? AND status IN ('active', 'approved')
+            ORDER BY version DESC
+            """,
+            (child_task_id,),
+        ).fetchall()
+
+        parts = [
+            f"[Subtask completed successfully]",
+            f"Title: {title}",
+            f"Capability: {child['capability_name']}",
+        ]
+        if artifacts:
+            parts.append("Produced artifacts:")
+            for art in artifacts:
+                value = art["value_json"]
+                if value and len(value) <= 2000:
+                    parts.append(f"  - {art['artifact_key']}: {value}")
+                elif value:
+                    parts.append(f"  - {art['artifact_key']}: {value[:2000]}… (truncated)")
+                else:
+                    parts.append(f"  - {art['artifact_key']}: (file artifact)")
+        else:
+            parts.append("No artifacts were produced — the subtask may have performed a side-effect (e.g. sent an email).")
+
+        return "\n".join(parts)
+
+    def _save_suspended_state(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+        messages: list[dict[str, Any]],
+    ) -> None:
+        """Persist the current conversation messages so the task can resume later."""
+        conn.execute(
+            "UPDATE tasks SET suspended_state_json = ?, updated_at = ? WHERE task_id = ?",
+            (json.dumps(messages, default=str), utc_now_iso(), task["task_id"]),
+        )
+        conn.commit()
+        logger.info("Task %s: saved %d messages for resumption.", task["task_id"], len(messages))
+
     def _dispatch(
         self,
         tc: Any,  # llm_mod.ToolCall
@@ -325,6 +516,8 @@ class BaseCapability:
             if tool.name == tc.name:
                 try:
                     return tool.run(conn, task, **tc.arguments)
+                except TaskBlocked:
+                    raise
                 except Exception as exc:
                     return f"Error running tool '{tc.name}': {exc}"
 

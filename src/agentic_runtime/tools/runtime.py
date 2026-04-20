@@ -4,6 +4,7 @@ import sqlite3
 from typing import Any
 
 from . import Tool
+from ..exceptions import TaskBlocked
 from ..ids import new_id
 from ..time import utc_now_iso
 
@@ -149,6 +150,124 @@ class CreateTask(Tool):
         if produced_artifacts:
             parts.append(f"produces: {[p['artifact_key'] for p in produced_artifacts]}")
         return ", ".join(parts) + "."
+
+
+class SpawnSubtask(Tool):
+    name = "spawn_subtask"
+    description = (
+        "Create a subtask that runs on a DIFFERENT capability and BLOCK this task "
+        "until the subtask finishes. Use this when the current task discovers it "
+        "needs work from another capability (e.g. a webbrowsing task needs to send "
+        "an email via the mail capability). The current task will pause, the subtask "
+        "will execute, and this task will resume with the subtask result."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "capability_name": {
+                "type": "string",
+                "description": "The capability that will execute the subtask.",
+            },
+            "title": {
+                "type": "string",
+                "description": "Short human-readable subtask title.",
+            },
+            "description": {
+                "type": "string",
+                "description": "Full description of what the subtask should do.",
+            },
+            "produced_artifacts": {
+                "type": "array",
+                "description": (
+                    "Artifacts the subtask will produce. "
+                    "Each item: {\"artifact_key\": \"<key>\", \"artifact_type\": \"structured\"|\"file\", "
+                    "\"delivery_mode\": \"value\"|\"file\"}."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "artifact_key": {"type": "string"},
+                        "artifact_type": {"type": "string", "enum": ["structured", "file"]},
+                        "delivery_mode": {"type": "string", "enum": ["value", "file"]},
+                    },
+                    "required": ["artifact_key", "artifact_type", "delivery_mode"],
+                },
+            },
+        },
+        "required": ["capability_name", "title", "description"],
+    }
+
+    def run(
+        self,
+        conn: sqlite3.Connection,
+        task: dict[str, Any],
+        *,
+        capability_name: str,
+        title: str,
+        description: str,
+        produced_artifacts: list[dict[str, Any]] | None = None,
+        **_: Any,
+    ) -> str:
+        # Verify the capability exists
+        cap_row = conn.execute(
+            "SELECT 1 FROM capabilities WHERE capability_name = ? AND enabled = 1",
+            (capability_name,),
+        ).fetchone()
+        if cap_row is None:
+            return f"Error: unknown or disabled capability '{capability_name}'."
+
+        child_task_id = new_id("task")
+        now = utc_now_iso()
+
+        # Create the child task with parent_task_id pointing back to us
+        conn.execute(
+            """
+            INSERT INTO tasks
+                (task_id, goal_id, project_id, parent_task_id, capability_name,
+                 title, description, state, priority, retry_count,
+                 allowed_paths_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?, 0, '[]', ?, ?)
+            """,
+            (
+                child_task_id,
+                task["goal_id"],
+                task["project_id"],
+                task["task_id"],
+                capability_name,
+                title,
+                description,
+                task.get("priority", 50),
+                now,
+                now,
+            ),
+        )
+
+        for prod in produced_artifacts or []:
+            conn.execute(
+                """
+                INSERT INTO task_produced_artifacts
+                    (production_id, task_id, artifact_key, artifact_type, delivery_mode, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_id("prod"),
+                    child_task_id,
+                    prod["artifact_key"],
+                    prod.get("artifact_type", "structured"),
+                    prod.get("delivery_mode", "value"),
+                    now,
+                ),
+            )
+
+        # Mark parent as blocked by this child
+        conn.execute(
+            "UPDATE tasks SET blocked_by_task_id = ?, updated_at = ? WHERE task_id = ?",
+            (child_task_id, now, task["task_id"]),
+        )
+        conn.commit()
+
+        # Raise to interrupt the capability loop — messages will be saved
+        raise TaskBlocked(child_task_id)
 
 
 class ListCapabilities(Tool):

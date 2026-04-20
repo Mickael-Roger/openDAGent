@@ -6,8 +6,9 @@ import time
 from typing import Any
 
 from .db import connect
+from .exceptions import TaskBlocked
 from .ids import new_id
-from .scheduler import queue_ready_tasks
+from .scheduler import queue_ready_tasks, unblock_completed_subtasks
 from .time import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -88,11 +89,35 @@ def _run_task(
         # Immediately check if any downstream tasks are now unblocked
         # (don't wait for the next ingress poll cycle).
         try:
+            unblocked = unblock_completed_subtasks(connection)
             queued = queue_ready_tasks(connection)
+            if unblocked:
+                logger.info("Resumed %d blocked parent(s) after %s: %s", len(unblocked), task_id, unblocked)
             if queued:
                 logger.info("Unblocked %d task(s) after %s: %s", len(queued), task_id, queued)
         except Exception:
             logger.debug("queue_ready_tasks after completion failed (will retry via ingress).", exc_info=True)
+
+    except TaskBlocked as exc:
+        now = utc_now_iso()
+        connection.execute(
+            "UPDATE tasks SET state = 'blocked', updated_at = ? WHERE task_id = ?",
+            (now, task_id),
+        )
+        connection.execute(
+            "UPDATE task_attempts SET status = 'done', ended_at = ? WHERE attempt_id = ?",
+            (now, attempt_id),
+        )
+        connection.commit()
+        logger.info("Task %s blocked waiting for subtask %s.", task_id, exc.child_task_id)
+
+        # Queue the child subtask immediately
+        try:
+            queued = queue_ready_tasks(connection)
+            if queued:
+                logger.info("Queued subtask(s) after blocking %s: %s", task_id, queued)
+        except Exception:
+            logger.debug("queue_ready_tasks after block failed (will retry via ingress).", exc_info=True)
 
     except Exception as exc:
         logger.exception("Task %s failed.", task_id)

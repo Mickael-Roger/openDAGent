@@ -25,6 +25,14 @@ MIGRATIONS = [
         "SELECT 1 FROM pragma_table_info('task_costs') WHERE name = 'provider_id'",
         "ALTER TABLE task_costs ADD COLUMN provider_id TEXT",
     ),
+    (
+        "SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'blocked_by_task_id'",
+        "ALTER TABLE tasks ADD COLUMN blocked_by_task_id TEXT REFERENCES tasks(task_id) ON DELETE SET NULL",
+    ),
+    (
+        "SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'suspended_state_json'",
+        "ALTER TABLE tasks ADD COLUMN suspended_state_json TEXT",
+    ),
 ]
 
 SCHEMA_STATEMENTS = (
