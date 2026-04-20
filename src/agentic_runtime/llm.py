@@ -30,7 +30,7 @@ _RETRY_DELAYS = [10, 30, 120, 300, 600]  # 10s, 30s, 2m, 5m, 10m, 10m, …
 
 
 def _log_http_error(exc: Exception, provider_label: str) -> None:
-    """Log the response body for non-retryable HTTP errors to aid debugging."""
+    """Log the response body for non-retryable HTTP errors and enrich the exception message."""
     resp = getattr(exc, "response", None)
     if resp is None:
         return
@@ -43,6 +43,8 @@ def _log_http_error(exc: Exception, provider_label: str) -> None:
         "%s API error %s — response body: %s",
         provider_label, status, body,
     )
+    # Attach the body to the exception so it surfaces in tracebacks
+    exc.args = (f"{exc.args[0]}\nResponse body: {body}",) if exc.args else (f"Response body: {body}",)
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -136,21 +138,21 @@ def _to_openai_messages(
         elif role == "assistant" and msg.get("tool_calls"):
             result.append({
                 "role": "assistant",
-                "content": msg.get("content"),
+                "content": msg.get("content") or None,
                 "tool_calls": [
                     {
                         "id": tc["id"],
                         "type": "function",
                         "function": {
                             "name": tc["name"],
-                            "arguments": json.dumps(tc["arguments"]),
+                            "arguments": json.dumps(tc["arguments"]) if isinstance(tc["arguments"], dict) else str(tc["arguments"]),
                         },
                     }
                     for tc in msg["tool_calls"]
                 ],
             })
         else:
-            result.append({"role": role, "content": msg.get("content", "")})
+            result.append({"role": role, "content": msg.get("content") or ""})
     return result
 
 
@@ -232,34 +234,37 @@ def _to_responses_input(
         result.append({"role": "system", "content": system})
     for msg in messages:
         role = msg["role"]
+        # Guard against None content (common for assistant turns with tool calls)
+        text = msg.get("content") or ""
         if role == "tool_result":
             result.append({
                 "type": "function_call_output",
                 "call_id": msg["tool_call_id"],
-                "output": str(msg.get("content", "")),
+                "output": str(text),
             })
         elif role == "assistant" and msg.get("tool_calls"):
             # Emit each tool call as a top-level function_call item, then the
             # text content (if any) as a separate message item.
-            if msg.get("content"):
+            if text:
                 result.append({
                     "role": "assistant",
-                    "content": [{"type": "output_text", "text": msg["content"]}],
+                    "content": [{"type": "output_text", "text": str(text)}],
                 })
             for tc in msg["tool_calls"]:
+                args = tc["arguments"]
                 result.append({
                     "type": "function_call",
                     "call_id": tc["id"],
                     "name": tc["name"],
-                    "arguments": json.dumps(tc["arguments"]),
+                    "arguments": json.dumps(args) if isinstance(args, dict) else str(args),
                 })
         elif role == "assistant":
             result.append({
                 "role": "assistant",
-                "content": [{"type": "output_text", "text": msg.get("content", "")}],
+                "content": [{"type": "output_text", "text": str(text)}],
             })
         else:  # user
-            result.append({"role": role, "content": str(msg.get("content", ""))})
+            result.append({"role": role, "content": str(text)})
     return result
 
 
