@@ -422,3 +422,19 @@ mcp:
   #   auth:
   #     type: api_key
   #     env_var: SLACK_TOKEN
+  #
+  # ── Streamable HTTP server (MCP 2025-03-26) ────────────────────────────
+  # Uses the Streamable HTTP transport: a single HTTP endpoint that can
+  # respond with either JSON or SSE (server-sent events).
+  # Supports session management via the Mcp-Session-Id header.
+  #
+  # - id: datagouv
+  #   transport: streamable
+  #   url: https://mcp.data.gouv.fr/mcp
+  #
+  # - id: my_streamable_server
+  #   transport: streamable
+  #   url: https://example.com/mcp
+  #   auth:
+  #     type: api_key
+  #     env_var: MY_SERVER_API_KEY

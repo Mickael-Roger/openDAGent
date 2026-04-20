@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any, Callable
 
-from .client import HttpMCPClient, StdioMCPClient, _parse_tool_list
+from .client import HttpMCPClient, StdioMCPClient, StreamableHttpMCPClient, _parse_tool_list
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class MCPManager:
         self._server_defs: dict[str, dict[str, Any]] = {
             s["id"]: s for s in mcp_config.get("servers", [])
         }
-        self._clients: dict[str, StdioMCPClient | HttpMCPClient] = {}
+        self._clients: dict[str, StdioMCPClient | HttpMCPClient | StreamableHttpMCPClient] = {}
 
     def __enter__(self) -> MCPManager:
         for sid in self._server_ids:
@@ -81,7 +81,7 @@ class MCPManager:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _connect(self, cfg: dict[str, Any]) -> StdioMCPClient | HttpMCPClient:
+    def _connect(self, cfg: dict[str, Any]) -> StdioMCPClient | HttpMCPClient | StreamableHttpMCPClient:
         transport = cfg.get("transport", "stdio")
 
         if transport == "stdio":
@@ -100,5 +100,8 @@ class MCPManager:
 
         if transport == "http":
             return HttpMCPClient(url=cfg["url"], auth_config=cfg.get("auth"))
+
+        if transport == "streamable":
+            return StreamableHttpMCPClient(url=cfg["url"], auth_config=cfg.get("auth"))
 
         raise ValueError(f"Unknown MCP transport: {transport!r}")
