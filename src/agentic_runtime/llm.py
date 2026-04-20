@@ -494,7 +494,13 @@ def _chatgpt_stream_request(
     """Send a streaming request to the ChatGPT Responses API and return the completed response."""
     with httpx.Client(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
         with client.stream("POST", _CHATGPT_ENDPOINT, headers=headers, json=payload) as resp:
-            resp.raise_for_status()
+            # For streaming, we must read the body before checking status
+            # because the response body isn't available after the context exits.
+            if resp.status_code != 200:
+                body = resp.read().decode("utf-8", errors="replace")[:2000]
+                logger.error("ChatGPT streaming error %d — body: %s", resp.status_code, body)
+                resp.raise_for_status()
+
             # Collect SSE events — we only need the response.completed event
             # which contains the full response object.
             completed_data: dict[str, Any] | None = None
