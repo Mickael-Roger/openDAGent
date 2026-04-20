@@ -506,7 +506,8 @@ def _chatgpt_chat(
     effective_max = min(max_tokens, _CHATGPT_MAX_OUTPUT_TOKENS)
     payload: dict[str, Any] = {
         "model": model_name,
-        "input": _to_responses_input(messages, system),
+        "instructions": system or "You are a helpful assistant.",
+        "input": _to_responses_input(messages, None),
         "max_output_tokens": effective_max,
     }
     if tools:
