@@ -509,6 +509,7 @@ def _chatgpt_chat(
         "instructions": system or "You are a helpful assistant.",
         "input": _to_responses_input(messages, None),
         "max_output_tokens": effective_max,
+        "store": False,
     }
     if tools:
         payload["tools"] = _responses_tools(tools)
