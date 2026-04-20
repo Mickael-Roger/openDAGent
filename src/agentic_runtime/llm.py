@@ -484,8 +484,6 @@ def _anthropic_chat(
 _CHATGPT_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
 
 
-_CHATGPT_MAX_OUTPUT_TOKENS = 16_384  # ChatGPT subscription models cap
-
 
 def _chatgpt_stream_request(
     headers: dict[str, str],
@@ -534,12 +532,10 @@ def _chatgpt_chat(
     if account_id:
         headers["ChatGPT-Account-Id"] = account_id
 
-    effective_max = min(max_tokens, _CHATGPT_MAX_OUTPUT_TOKENS)
     payload: dict[str, Any] = {
         "model": model_name,
         "instructions": system or "You are a helpful assistant.",
         "input": _to_responses_input(messages, None),
-        "max_output_tokens": effective_max,
         "store": False,
         "stream": True,
     }
