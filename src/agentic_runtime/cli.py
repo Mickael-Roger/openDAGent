@@ -79,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.chatgpt_login:
         from .chatgpt_auth import login_device_flow
         login_device_flow()
+        _ensure_chatgpt_provider(config_path)
         return 0
 
     if args.add_provider:
@@ -366,3 +367,59 @@ def _add_provider_wizard(config_path: Path) -> int:
     config_path.write_text(_yaml_dump(data), encoding="utf-8")
     print(f"\nProvider '{pid}' added to {config_path}")
     return 0
+
+
+# ── ChatGPT provider auto-registration ─────────────────────────────────────
+
+_CHATGPT_PROVIDER: dict = {
+    "id": "chatgpt",
+    "type": "chatgpt",
+    "models": [
+        {
+            "id": "gpt-4o",
+            "role": "strong_reasoning",
+            "features": ["vision", "json_mode", "long_context", "code"],
+            "cost": 0,
+            "speed": 8,
+            "scores": {"reasoning": 9, "coding": 9, "writing": 8},
+        },
+        {
+            "id": "o3",
+            "role": "strong_reasoning",
+            "features": ["reasoning", "json_mode", "long_context", "code"],
+            "cost": 0,
+            "speed": 4,
+            "scores": {"reasoning": 10, "coding": 10},
+        },
+    ],
+}
+
+
+def _ensure_chatgpt_provider(config_path: Path) -> None:
+    """Add the chatgpt provider to config.yaml if not already present."""
+    if not config_path.exists():
+        return
+
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return
+
+    data.setdefault("llm", {})
+    providers: list = data["llm"].setdefault("providers", [])
+
+    # Skip if a chatgpt-type provider already exists
+    for p in providers:
+        if isinstance(p, dict) and p.get("type") == "chatgpt":
+            print(f"ChatGPT provider already configured in {config_path}")
+            return
+
+    providers.append(_CHATGPT_PROVIDER)
+
+    # Set as default if no default exists yet
+    if not data["llm"].get("default_provider"):
+        data["llm"]["default_provider"] = "chatgpt"
+        data["llm"]["default_model"] = "gpt-4o"
+        print(f"  default_provider → chatgpt,  default_model → gpt-4o")
+
+    config_path.write_text(_yaml_dump(data), encoding="utf-8")
+    print(f"ChatGPT provider added to {config_path}")
