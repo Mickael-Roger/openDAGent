@@ -487,6 +487,31 @@ _CHATGPT_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
 _CHATGPT_MAX_OUTPUT_TOKENS = 16_384  # ChatGPT subscription models cap
 
 
+def _chatgpt_stream_request(
+    headers: dict[str, str],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Send a streaming request to the ChatGPT Responses API and return the completed response."""
+    with httpx.Client(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
+        with client.stream("POST", _CHATGPT_ENDPOINT, headers=headers, json=payload) as resp:
+            resp.raise_for_status()
+            # Collect SSE events — we only need the response.completed event
+            # which contains the full response object.
+            completed_data: dict[str, Any] | None = None
+            current_event = ""
+            for line in resp.iter_lines():
+                if line.startswith("event: "):
+                    current_event = line[7:]
+                elif line.startswith("data: ") and current_event == "response.completed":
+                    try:
+                        completed_data = json.loads(line[6:])
+                    except json.JSONDecodeError:
+                        pass
+            if completed_data is None:
+                raise RuntimeError("ChatGPT stream ended without a response.completed event")
+            return completed_data
+
+
 def _chatgpt_chat(
     messages: list[dict[str, Any]],
     model_name: str,
@@ -510,15 +535,14 @@ def _chatgpt_chat(
         "input": _to_responses_input(messages, None),
         "max_output_tokens": effective_max,
         "store": False,
+        "stream": True,
     }
     if tools:
         payload["tools"] = _responses_tools(tools)
 
     for attempt in range(10_000):  # effectively infinite
         try:
-            with httpx.Client(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
-                resp = client.post(_CHATGPT_ENDPOINT, headers=headers, json=payload)
-                resp.raise_for_status()
+            data = _chatgpt_stream_request(headers, payload)
             break
         except Exception as exc:
             if not _is_retryable(exc):
@@ -531,8 +555,6 @@ def _chatgpt_chat(
                 attempt + 1, status, exc, delay,
             )
             time.sleep(delay)
-
-    data = resp.json()
 
     content: str | None = None
     tool_calls: list[ToolCall] = []
