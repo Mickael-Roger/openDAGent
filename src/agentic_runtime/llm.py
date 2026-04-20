@@ -29,7 +29,7 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 _RETRY_DELAYS = [10, 30, 120, 300, 600]  # 10s, 30s, 2m, 5m, 10m, 10m, …
 
 
-def _log_http_error(exc: Exception, provider_label: str) -> None:
+def _log_http_error(exc: Exception, provider_label: str, payload: dict[str, Any] | None = None) -> None:
     """Log the response body for non-retryable HTTP errors and enrich the exception message."""
     resp = getattr(exc, "response", None)
     if resp is None:
@@ -43,8 +43,23 @@ def _log_http_error(exc: Exception, provider_label: str) -> None:
         "%s API error %s — response body: %s",
         provider_label, status, body,
     )
-    # Attach the body to the exception so it surfaces in tracebacks
-    exc.args = (f"{exc.args[0]}\nResponse body: {body}",) if exc.args else (f"Response body: {body}",)
+    if payload:
+        # Log a summary of the request payload to aid debugging
+        summary_parts = [f"model={payload.get('model')}"]
+        inp = payload.get("input") or payload.get("messages")
+        if inp:
+            summary_parts.append(f"input_items={len(inp)}")
+        tools = payload.get("tools")
+        if tools:
+            summary_parts.append(f"tools={len(tools)}")
+            summary_parts.append(f"tool_names={[t.get('name','?') for t in tools[:10]]}")
+        summary_parts.append(f"max_tokens={payload.get('max_output_tokens') or payload.get('max_tokens')}")
+        logger.error("%s request payload summary: %s", provider_label, ", ".join(summary_parts))
+    # Re-raise with enriched message
+    try:
+        exc.args = (f"{exc.args[0]}\nResponse body: {body}",) if exc.args else (f"Response body: {body}",)
+    except Exception:
+        pass
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -269,15 +284,41 @@ def _to_responses_input(
 
 
 def _responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
+    result = []
+    for t in tools:
+        params = t.get("parameters", {"type": "object", "properties": {}})
+        # Ensure the schema is valid for the Responses API
+        sanitised = _sanitise_json_schema(params)
+        result.append({
             "type": "function",
             "name": t["name"],
             "description": t.get("description", ""),
-            "parameters": t.get("parameters", {"type": "object", "properties": {}}),
-        }
-        for t in tools
-    ]
+            "parameters": sanitised,
+            "strict": False,
+        })
+    return result
+
+
+def _sanitise_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Strip non-standard JSON Schema keys that some APIs reject."""
+    # Only keep keys recognised by the OpenAI Responses API function parameters
+    _ALLOWED_KEYS = {
+        "type", "properties", "required", "items", "enum",
+        "description", "default", "anyOf", "oneOf", "allOf",
+        "additionalProperties", "minimum", "maximum",
+        "minItems", "maxItems", "pattern", "const", "nullable",
+    }
+    out: dict[str, Any] = {}
+    for k, v in schema.items():
+        if k not in _ALLOWED_KEYS:
+            continue
+        if k == "properties" and isinstance(v, dict):
+            out[k] = {pk: _sanitise_json_schema(pv) if isinstance(pv, dict) else pv for pk, pv in v.items()}
+        elif k == "items" and isinstance(v, dict):
+            out[k] = _sanitise_json_schema(v)
+        else:
+            out[k] = v
+    return out
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
@@ -332,7 +373,7 @@ def _openai_chat(
             break
         except Exception as exc:
             if not _is_retryable(exc):
-                _log_http_error(exc, "OpenAI-compatible")
+                _log_http_error(exc, "OpenAI-compatible", payload)
                 raise
             delay = _retry_delay(attempt, exc)
             status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -406,7 +447,7 @@ def _anthropic_chat(
             break
         except Exception as exc:
             if not _is_retryable(exc):
-                _log_http_error(exc, "Anthropic")
+                _log_http_error(exc, "Anthropic", payload)
                 raise
             delay = _retry_delay(attempt, exc)
             status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -443,6 +484,9 @@ def _anthropic_chat(
 _CHATGPT_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
 
 
+_CHATGPT_MAX_OUTPUT_TOKENS = 16_384  # ChatGPT subscription models cap
+
+
 def _chatgpt_chat(
     messages: list[dict[str, Any]],
     model_name: str,
@@ -459,10 +503,11 @@ def _chatgpt_chat(
     if account_id:
         headers["ChatGPT-Account-Id"] = account_id
 
+    effective_max = min(max_tokens, _CHATGPT_MAX_OUTPUT_TOKENS)
     payload: dict[str, Any] = {
         "model": model_name,
         "input": _to_responses_input(messages, system),
-        "max_output_tokens": max_tokens,
+        "max_output_tokens": effective_max,
     }
     if tools:
         payload["tools"] = _responses_tools(tools)
@@ -475,7 +520,7 @@ def _chatgpt_chat(
             break
         except Exception as exc:
             if not _is_retryable(exc):
-                _log_http_error(exc, "ChatGPT")
+                _log_http_error(exc, "ChatGPT", payload)
                 raise
             delay = _retry_delay(attempt, exc)
             status = getattr(getattr(exc, "response", None), "status_code", None)
