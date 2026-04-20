@@ -67,6 +67,16 @@ def _run_task(
         if executor is None:
             raise NotImplementedError(f"Capability not found: {task['capability_name']!r}")
 
+        # Snapshot the latest goal message timestamp before execution so we
+        # can detect if the capability posted a response via post_message.
+        pre_exec_latest = None
+        if task["capability_name"] == "chat_response" and task.get("goal_id"):
+            row = connection.execute(
+                "SELECT message_ts FROM goal_messages WHERE goal_id = ? ORDER BY message_ts DESC LIMIT 1",
+                (task["goal_id"],),
+            ).fetchone()
+            pre_exec_latest = row["message_ts"] if row else None
+
         executor.execute(
             connection,
             task,
@@ -74,6 +84,32 @@ def _run_task(
             mcp_config=app_config.get("mcp", {}),
             app_config=app_config,
         )
+
+        # Safety net: if chat_response finished without posting any goal message,
+        # insert a placeholder so ingress doesn't re-trigger infinitely.
+        if task["capability_name"] == "chat_response" and task.get("goal_id"):
+            post_exec_latest = connection.execute(
+                "SELECT message_ts FROM goal_messages WHERE goal_id = ? ORDER BY message_ts DESC LIMIT 1",
+                (task["goal_id"],),
+            ).fetchone()
+            post_ts = post_exec_latest["message_ts"] if post_exec_latest else None
+            if post_ts == pre_exec_latest:
+                # No new message was posted — insert a system message to break the loop
+                from .ids import new_id as _new_id
+                _now = utc_now_iso()
+                connection.execute(
+                    """
+                    INSERT INTO goal_messages
+                        (message_id, goal_id, project_id, author_type, source_channel,
+                         content, message_ts, created_at)
+                    VALUES (?, ?, ?, 'system', 'web', ?, ?, ?)
+                    """,
+                    (_new_id("msg"), task["goal_id"], task["project_id"],
+                     "(The assistant processed your message but produced no visible reply.)",
+                     _now, _now),
+                )
+                connection.commit()
+                logger.warning("Task %s (chat_response) finished without posting a message — inserted fallback.", task_id)
 
         now = utc_now_iso()
         connection.execute(

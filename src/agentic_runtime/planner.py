@@ -23,14 +23,29 @@ def should_plan(connection: sqlite3.Connection, goal_id: str) -> bool:
     # Only plan when the most recent message is from the user
     latest = connection.execute(
         """
-        SELECT author_type FROM goal_messages
+        SELECT author_type, message_ts FROM goal_messages
         WHERE goal_id = ?
         ORDER BY message_ts DESC, created_at DESC
         LIMIT 1
         """,
         (goal_id,),
     ).fetchone()
-    return latest is not None and latest["author_type"] == "user"
+    if latest is None or latest["author_type"] != "user":
+        return False
+
+    # Prevent infinite loop: skip if a chat_response task already completed
+    # after the latest user message (the LLM already handled this message).
+    latest_ts = latest["message_ts"]
+    already_handled = connection.execute(
+        """
+        SELECT 1 FROM tasks
+        WHERE goal_id = ? AND capability_name = 'chat_response'
+          AND state = 'done' AND completed_at > ?
+        LIMIT 1
+        """,
+        (goal_id, latest_ts),
+    ).fetchone()
+    return already_handled is None
 
 
 def create_chat_response_task(
