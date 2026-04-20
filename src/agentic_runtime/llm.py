@@ -321,7 +321,7 @@ def _openai_chat(
 
     for attempt in range(10_000):  # effectively infinite
         try:
-            with httpx.Client(timeout=120.0) as client:
+            with httpx.Client(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
                 resp = client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
                 resp.raise_for_status()
             break
@@ -395,7 +395,7 @@ def _anthropic_chat(
 
     for attempt in range(10_000):  # effectively infinite
         try:
-            with httpx.Client(timeout=120.0) as client:
+            with httpx.Client(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
                 resp = client.post(f"{endpoint}/v1/messages", headers=headers, json=payload)
                 resp.raise_for_status()
             break
@@ -464,7 +464,7 @@ def _chatgpt_chat(
 
     for attempt in range(10_000):  # effectively infinite
         try:
-            with httpx.Client(timeout=120.0) as client:
+            with httpx.Client(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
                 resp = client.post(_CHATGPT_ENDPOINT, headers=headers, json=payload)
                 resp.raise_for_status()
             break

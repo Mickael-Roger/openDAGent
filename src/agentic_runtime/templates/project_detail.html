@@ -79,6 +79,13 @@
     </section>
 </div>
 
+<section class="panel" id="traces-section">
+    <div class="panel-header"><h2>Recent Traces</h2></div>
+    <div id="traces-container">
+        <p class="empty-copy">Loading traces...</p>
+    </div>
+</section>
+
 <script id="graph-data" type="application/json">{{ graph_json|safe }}</script>
 <script type="module" src="{{ url_for('static', path='/graph.js') }}"></script>
 <script>
@@ -118,5 +125,40 @@
     document.querySelectorAll('.artifact-view-btn').forEach(btn => {
         btn.addEventListener('click', () => openArtifactModal(btn.dataset.artifactId));
     });
+
+    // ── Project traces ──────────────────────────────────────────────────
+    (async function loadTraces() {
+        const container = document.getElementById('traces-container');
+        try {
+            const res = await fetch('/api/traces?project_id={{ project.project_id }}&limit=30');
+            const traces = await res.json();
+            if (!traces.length) {
+                container.innerHTML = '<p class="empty-copy">No execution traces recorded yet.</p>';
+                return;
+            }
+            let html = '<table class="detail-table"><thead><tr>' +
+                '<th>Task</th><th>Capability</th><th>Status</th><th>Started</th><th>Duration</th>' +
+                '</tr></thead><tbody>';
+            for (const t of traces) {
+                let duration = '—';
+                if (t.start_time && t.end_time) {
+                    const ms = new Date(t.end_time) - new Date(t.start_time);
+                    duration = ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's';
+                }
+                const statusClass = t.status === 'ok' ? 'done' : t.status === 'error' ? 'failed' : 'running';
+                html += `<tr>
+                    <td><a href="/tasks/${t.task_id}" style="color:var(--accent)"><code style="font-size:0.78rem">${t.task_id.slice(0, 16)}...</code></a></td>
+                    <td>${t.capability_name || '—'}</td>
+                    <td><span class="pill pill-${statusClass}">${t.status}</span></td>
+                    <td style="color:var(--muted);font-size:0.82rem">${t.start_time || ''}</td>
+                    <td>${duration}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch (err) {
+            container.innerHTML = '<p class="empty-copy">Failed to load traces.</p>';
+        }
+    })();
 </script>
 {% endblock %}
