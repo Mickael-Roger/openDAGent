@@ -69,7 +69,9 @@ class BaseCapability:
         llm_config: dict[str, Any],
         mcp_config: dict[str, Any] | None = None,
         app_config: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> str | None:
+        """Run the capability loop.  Returns the LLM's final text content
+        (if any) so callers can decide whether to auto-post it."""
         # Ensure the task has a workspace directory
         self._ensure_workspace(conn, task)
 
@@ -93,10 +95,9 @@ class BaseCapability:
                 from ..mcp.manager import MCPManager
                 with MCPManager(self.mcp_servers, mcp_config or {}) as mgr:
                     mcp_schemas, mcp_dispatch = mgr.tools()
-                    self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
-                return
+                    return self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
 
-            self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
+            return self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
 
     # ── Loop ──────────────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ class BaseCapability:
         mcp_dispatch: dict[str, Any],
         trace: Any = None,
         app_config: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> str | None:
         provider, model, max_tokens = self._resolve_provider(llm_config)
         provider_id = str(provider.get("id", ""))
         provider_type = str(provider.get("type", "openai"))
@@ -119,6 +120,7 @@ class BaseCapability:
         messages = self._restore_or_build_messages(conn, task)
         system_prompt = self._build_system_prompt(conn, task, app_config)
 
+        final_content: str | None = None
         total_prompt_tokens = 0
         total_completion_tokens = 0
 
@@ -163,6 +165,7 @@ class BaseCapability:
                     llm_span.set_attribute("llm.response.content_length", len(response.content))
 
             if response.is_final:
+                final_content = response.content
                 if response.content:
                     logger.debug("Capability %s finished after %d iteration(s).", self.name, iteration + 1)
                 break
@@ -226,6 +229,8 @@ class BaseCapability:
         # Persist token usage
         if total_prompt_tokens + total_completion_tokens > 0:
             self._record_usage(conn, task, provider_id, model, total_prompt_tokens, total_completion_tokens)
+
+        return final_content
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

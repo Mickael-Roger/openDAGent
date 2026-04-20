@@ -10,6 +10,7 @@
         <p class="subtitle">{{ project.slug }} · Runtime state: <span class="pill pill-{{ project.state }}">{{ project.state }}</span></p>
     </div>
     <div class="hero-actions" style="display:flex;gap:10px;align-items:center">
+        <a class="btn-primary" href="{{ url_for('project_chat', project_id=project.project_id) }}" style="font-size:0.85rem;padding:9px 18px">Open Chat</a>
         <a class="btn-ghost" href="{{ url_for('dashboard') }}">Back to projects</a>
         {% if project.state in ('draft', 'activated') %}
         <button class="btn-ghost" id="pause-project-btn" data-action="pause">Pause</button>
@@ -86,6 +87,21 @@
     </div>
 </section>
 
+<!-- Trace detail modal -->
+<div id="trace-modal" class="artifact-modal" hidden>
+    <div class="artifact-modal-backdrop"></div>
+    <div class="artifact-modal-box" style="max-width:1100px">
+        <div class="artifact-modal-header">
+            <div>
+                <strong id="trace-modal-title"></strong>
+                <span id="trace-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+            </div>
+            <button class="btn-ghost" id="trace-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+        </div>
+        <div id="trace-modal-body" class="artifact-modal-body" style="padding:16px;overflow-y:auto;max-height:80vh"></div>
+    </div>
+</div>
+
 <script id="graph-data" type="application/json">{{ graph_json|safe }}</script>
 <script type="module" src="{{ url_for('static', path='/graph.js') }}"></script>
 <script>
@@ -137,10 +153,10 @@
                 return;
             }
             let html = '<table class="detail-table"><thead><tr>' +
-                '<th>Task</th><th>Capability</th><th>Status</th><th>Started</th><th>Duration</th>' +
+                '<th>Task</th><th>Capability</th><th>Status</th><th>Started</th><th>Duration</th><th></th>' +
                 '</tr></thead><tbody>';
             for (const t of traces) {
-                let duration = '—';
+                let duration = '\u2014';
                 if (t.start_time && t.end_time) {
                     const ms = new Date(t.end_time) - new Date(t.start_time);
                     duration = ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's';
@@ -148,17 +164,115 @@
                 const statusClass = t.status === 'ok' ? 'done' : t.status === 'error' ? 'failed' : 'running';
                 html += `<tr>
                     <td><a href="/tasks/${t.task_id}" style="color:var(--accent)"><code style="font-size:0.78rem">${t.task_id.slice(0, 16)}...</code></a></td>
-                    <td>${t.capability_name || '—'}</td>
+                    <td>${t.capability_name || '\u2014'}</td>
                     <td><span class="pill pill-${statusClass}">${t.status}</span></td>
                     <td style="color:var(--muted);font-size:0.82rem">${t.start_time || ''}</td>
                     <td>${duration}</td>
+                    <td><button class="btn-ghost trace-view-btn" style="padding:4px 10px;font-size:0.78rem"
+                                data-trace-id="${t.trace_id}">View spans</button></td>
                 </tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
+
+            container.querySelectorAll('.trace-view-btn').forEach(btn => {
+                btn.addEventListener('click', () => openTraceModal(btn.dataset.traceId));
+            });
         } catch (err) {
             container.innerHTML = '<p class="empty-copy">Failed to load traces.</p>';
         }
     })();
+
+    // ── Trace modal (same as task_detail) ───────────────────────────────
+    async function openTraceModal(traceId) {
+        const modal = document.getElementById('trace-modal');
+        const body = document.getElementById('trace-modal-body');
+        const title = document.getElementById('trace-modal-title');
+        const meta = document.getElementById('trace-modal-meta');
+        modal.hidden = false;
+        body.innerHTML = '<p>Loading...</p>';
+        title.textContent = 'Trace ' + traceId.slice(0, 20) + '...';
+        meta.textContent = '';
+
+        try {
+            const res = await fetch('/api/traces/' + traceId);
+            const trace = await res.json();
+            meta.textContent = `${trace.capability_name || ''} \u00B7 ${trace.status}`;
+
+            let attrs = {};
+            try { attrs = JSON.parse(trace.attributes_json || '{}'); } catch(e) {}
+
+            let html = '<div class="trace-summary">';
+            if (attrs['llm.model']) html += `<span><strong>Model:</strong> ${attrs['llm.model']}</span>`;
+            if (attrs['llm.provider']) html += `<span><strong>Provider:</strong> ${attrs['llm.provider']}</span>`;
+            if (attrs['llm.iterations'] !== undefined) html += `<span><strong>Iterations:</strong> ${attrs['llm.iterations']}</span>`;
+            if (attrs['llm.tokens.total_prompt'] !== undefined)
+                html += `<span><strong>Tokens:</strong> ${Number(attrs['llm.tokens.total_prompt']).toLocaleString()} prompt + ${Number(attrs['llm.tokens.total_completion']).toLocaleString()} completion</span>`;
+            html += '</div>';
+
+            if (trace.spans && trace.spans.length) {
+                html += '<div class="trace-spans">';
+                for (const span of trace.spans) {
+                    let sAttrs = {};
+                    try { sAttrs = JSON.parse(span.attributes_json || '{}'); } catch(e) {}
+                    const statusClass = span.status === 'ok' ? 'done' : span.status === 'error' ? 'failed' : 'running';
+                    let dur = '\u2014';
+                    if (span.start_time && span.end_time) {
+                        const ms = new Date(span.end_time) - new Date(span.start_time);
+                        dur = ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's';
+                    }
+                    const nested = span.parent_span_id ? ' trace-span-nested' : '';
+
+                    html += `<div class="trace-span${nested}">
+                        <div class="trace-span-header">
+                            <div>
+                                <span class="trace-span-name">${span.name}</span>
+                                <span class="trace-span-kind">${span.kind}</span>
+                            </div>
+                            <div class="trace-span-metrics">
+                                <span class="trace-span-duration">${dur}</span>
+                                <span class="pill pill-${statusClass}" style="font-size:0.72rem">${span.status}</span>
+                            </div>
+                        </div>`;
+
+                    const attrEntries = Object.entries(sAttrs).filter(([k]) =>
+                        !k.startsWith('llm.iteration') && !k.startsWith('tool.call_id')
+                    );
+                    if (attrEntries.length) {
+                        html += '<div class="trace-span-attrs">';
+                        for (const [k, v] of attrEntries) {
+                            const display = typeof v === 'string' ? v : JSON.stringify(v);
+                            html += `<span><code>${k}</code>: <span class="trace-span-attr-value">${display}</span></span>`;
+                        }
+                        html += '</div>';
+                    }
+
+                    if (sAttrs['error.message']) {
+                        html += `<div class="trace-span-error">${sAttrs['error.message']}</div>`;
+                    }
+
+                    html += '</div>';
+                }
+                html += '</div>';
+            } else {
+                html += '<p class="empty-copy">No spans recorded.</p>';
+            }
+
+            body.innerHTML = html;
+        } catch (err) {
+            body.innerHTML = '<p>Failed to load trace details.</p>';
+        }
+    }
+
+    // Close trace modal
+    document.getElementById('trace-modal-close').addEventListener('click', () => {
+        document.getElementById('trace-modal').hidden = true;
+    });
+    document.querySelector('#trace-modal .artifact-modal-backdrop').addEventListener('click', () => {
+        document.getElementById('trace-modal').hidden = true;
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') document.getElementById('trace-modal').hidden = true;
+    });
 </script>
 {% endblock %}

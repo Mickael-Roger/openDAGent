@@ -5,9 +5,14 @@
     <div>
         <p class="eyebrow">Task</p>
         <h1>{{ task.title }}</h1>
-        <p class="subtitle">{{ task.project_title }} / {{ task.goal_title }}</p>
+        <p class="subtitle">
+            <a href="{{ url_for('project_detail', project_id=task.project_id) }}" style="color:var(--accent)">{{ task.project_title }}</a>
+            &nbsp;/&nbsp; {{ task.goal_title }}
+        </p>
     </div>
-    <div class="hero-actions">
+    <div class="hero-actions" style="display:flex;gap:10px;align-items:center">
+        <a class="btn-ghost" href="{{ url_for('project_chat', project_id=task.project_id) }}">Chat</a>
+        <a class="btn-ghost" href="{{ url_for('project_detail', project_id=task.project_id) }}">DAG</a>
         <span class="pill pill-{{ task.state }}">{{ task.state }}</span>
     </div>
 </section>
@@ -161,7 +166,7 @@
 <!-- Trace detail modal -->
 <div id="trace-modal" class="artifact-modal" hidden>
     <div class="artifact-modal-backdrop"></div>
-    <div class="artifact-modal-box" style="max-width:900px">
+    <div class="artifact-modal-box" style="max-width:1100px">
         <div class="artifact-modal-header">
             <div>
                 <strong id="trace-modal-title"></strong>
@@ -169,7 +174,7 @@
             </div>
             <button class="btn-ghost" id="trace-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
         </div>
-        <div id="trace-modal-body" class="artifact-modal-body" style="padding:16px;overflow-y:auto;max-height:70vh"></div>
+        <div id="trace-modal-body" class="artifact-modal-body" style="padding:16px;overflow-y:auto;max-height:80vh"></div>
     </div>
 </div>
 
@@ -238,12 +243,12 @@
             let attrs = {};
             try { attrs = JSON.parse(trace.attributes_json || '{}'); } catch(e) {}
 
-            let html = '<div style="margin-bottom:16px">';
-            if (attrs['llm.model']) html += `<strong>Model:</strong> ${attrs['llm.model']}&nbsp;&nbsp;`;
-            if (attrs['llm.provider']) html += `<strong>Provider:</strong> ${attrs['llm.provider']}&nbsp;&nbsp;`;
-            if (attrs['llm.iterations'] !== undefined) html += `<strong>Iterations:</strong> ${attrs['llm.iterations']}&nbsp;&nbsp;`;
+            let html = '<div class="trace-summary">';
+            if (attrs['llm.model']) html += `<span><strong>Model:</strong> ${attrs['llm.model']}</span>`;
+            if (attrs['llm.provider']) html += `<span><strong>Provider:</strong> ${attrs['llm.provider']}</span>`;
+            if (attrs['llm.iterations'] !== undefined) html += `<span><strong>Iterations:</strong> ${attrs['llm.iterations']}</span>`;
             if (attrs['llm.tokens.total_prompt'] !== undefined)
-                html += `<strong>Tokens:</strong> ${Number(attrs['llm.tokens.total_prompt']).toLocaleString()} prompt + ${Number(attrs['llm.tokens.total_completion']).toLocaleString()} completion`;
+                html += `<span><strong>Tokens:</strong> ${Number(attrs['llm.tokens.total_prompt']).toLocaleString()} prompt + ${Number(attrs['llm.tokens.total_completion']).toLocaleString()} completion</span>`;
             html += '</div>';
 
             if (trace.spans && trace.spans.length) {
@@ -252,44 +257,41 @@
                     let sAttrs = {};
                     try { sAttrs = JSON.parse(span.attributes_json || '{}'); } catch(e) {}
                     const statusClass = span.status === 'ok' ? 'done' : span.status === 'error' ? 'failed' : 'running';
-                    let dur = '—';
+                    let dur = '\u2014';
                     if (span.start_time && span.end_time) {
                         const ms = new Date(span.end_time) - new Date(span.start_time);
                         dur = ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's';
                     }
-                    const indent = span.parent_span_id ? 'padding-left:24px;' : '';
+                    const nested = span.parent_span_id ? ' trace-span-nested' : '';
 
-                    html += `<div style="border-left:3px solid var(--border);${indent}padding:8px 12px;margin-bottom:4px;border-radius:4px;background:var(--surface)">
-                        <div style="display:flex;justify-content:space-between;align-items:center">
+                    html += `<div class="trace-span${nested}">
+                        <div class="trace-span-header">
                             <div>
-                                <strong>${span.name}</strong>
-                                <span style="color:var(--muted);font-size:0.8rem;margin-left:8px">${span.kind}</span>
+                                <span class="trace-span-name">${span.name}</span>
+                                <span class="trace-span-kind">${span.kind}</span>
                             </div>
-                            <div style="display:flex;gap:8px;align-items:center">
-                                <span style="font-size:0.82rem">${dur}</span>
+                            <div class="trace-span-metrics">
+                                <span class="trace-span-duration">${dur}</span>
                                 <span class="pill pill-${statusClass}" style="font-size:0.72rem">${span.status}</span>
                             </div>
                         </div>`;
 
-                    // Show key attributes
+                    // Show ALL attributes (no limit)
                     const attrEntries = Object.entries(sAttrs).filter(([k]) =>
                         !k.startsWith('llm.iteration') && !k.startsWith('tool.call_id')
                     );
                     if (attrEntries.length) {
-                        html += '<div style="margin-top:6px;font-size:0.78rem;color:var(--muted)">';
-                        for (const [k, v] of attrEntries.slice(0, 8)) {
-                            const display = typeof v === 'string' && v.length > 120 ? v.slice(0, 120) + '...' : v;
-                            html += `<span style="margin-right:12px"><code>${k}</code>: ${display}</span>`;
+                        html += '<div class="trace-span-attrs">';
+                        for (const [k, v] of attrEntries) {
+                            const display = typeof v === 'string' ? v : JSON.stringify(v);
+                            html += `<span><code>${k}</code>: <span class="trace-span-attr-value">${display}</span></span>`;
                         }
-                        if (attrEntries.length > 8) html += `<span>... +${attrEntries.length - 8} more</span>`;
                         html += '</div>';
                     }
 
-                    // Show error message
+                    // Show full error message (no truncation)
                     if (sAttrs['error.message']) {
-                        html += `<div style="margin-top:6px;padding:6px 8px;background:var(--danger-bg,#3a1a1a);border-radius:4px;font-size:0.8rem;color:var(--danger,#f87171)">
-                            ${sAttrs['error.message'].slice(0, 500)}
-                        </div>`;
+                        html += `<div class="trace-span-error">${sAttrs['error.message']}</div>`;
                     }
 
                     html += '</div>';

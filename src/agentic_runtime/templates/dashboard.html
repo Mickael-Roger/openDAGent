@@ -49,6 +49,7 @@
                 </div>
             </a>
             <div class="project-card-actions">
+                <a class="btn-ghost btn-sm" href="{{ url_for('project_detail', project_id=project.project_id) }}">DAG</a>
                 {% if project.state in ('draft', 'activated') %}
                 <button class="btn-ghost btn-sm pause-project-btn"
                         data-project-id="{{ project.project_id }}"

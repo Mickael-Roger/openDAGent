@@ -31,7 +31,9 @@ system_prompt: |
      capability_name from the list returned by list_capabilities to each task.
   6. Use write_artifact to persist the plan under key 'plan.tasks' as a JSON array.
   7. Use create_task to instantiate each task in the runtime.
-  8. Use post_message to summarise the plan for the user.
+  8. MANDATORY: Use post_message to summarise the plan for the user. You MUST call
+     post_message before finishing — this is how the user sees your work. If you skip
+     this step, the user gets no feedback at all.
 
   Rules:
   - Every task must have at least one produced artifact.
