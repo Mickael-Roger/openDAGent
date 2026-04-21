@@ -94,7 +94,9 @@ class BaseCapability:
             if self.mcp_servers:
                 from ..mcp.manager import MCPManager
                 with MCPManager(self.mcp_servers, mcp_config or {}) as mgr:
-                    mcp_schemas, mcp_dispatch = mgr.tools()
+                    mcp_schemas, mcp_dispatch = mgr.tools(
+                        workspace_path=task.get("workspace_path"),
+                    )
                     return self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
 
             return self._run_loop(conn, task, llm_config, native_tools, mcp_schemas, mcp_dispatch, trace, app_config)
@@ -469,7 +471,7 @@ class BaseCapability:
         # Collect any artifacts produced by the child
         artifacts = conn.execute(
             """
-            SELECT artifact_key, value_json
+            SELECT artifact_key, value_json, file_path
             FROM artifacts
             WHERE produced_by_task_id = ? AND status IN ('active', 'approved')
             ORDER BY version DESC
@@ -486,12 +488,30 @@ class BaseCapability:
             parts.append("Produced artifacts:")
             for art in artifacts:
                 value = art["value_json"]
+                fpath = art["file_path"]
                 if value and len(value) <= 2000:
                     parts.append(f"  - {art['artifact_key']}: {value}")
                 elif value:
                     parts.append(f"  - {art['artifact_key']}: {value[:2000]}… (truncated)")
+                elif fpath:
+                    fp = Path(fpath)
+                    binary_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
+                                   ".pdf", ".zip", ".tar", ".gz", ".bin", ".mp4"}
+                    if fp.suffix.lower() in binary_exts:
+                        parts.append(f"  - {art['artifact_key']}: [binary file: {fp.name}] (path: {fpath})")
+                    elif fp.exists():
+                        try:
+                            content = fp.read_text(encoding="utf-8", errors="replace")
+                            if len(content) <= 2000:
+                                parts.append(f"  - {art['artifact_key']}: {content}")
+                            else:
+                                parts.append(f"  - {art['artifact_key']}: {content[:2000]}… (truncated, file: {fpath})")
+                        except Exception:
+                            parts.append(f"  - {art['artifact_key']}: [file: {fpath}]")
+                    else:
+                        parts.append(f"  - {art['artifact_key']}: [file missing: {fpath}]")
                 else:
-                    parts.append(f"  - {art['artifact_key']}: (file artifact)")
+                    parts.append(f"  - {art['artifact_key']}: (empty artifact)")
         else:
             parts.append("No artifacts were produced — the subtask may have performed a side-effect (e.g. sent an email).")
 

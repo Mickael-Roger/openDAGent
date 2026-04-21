@@ -14,6 +14,31 @@ from .time import utc_now_iso
 logger = logging.getLogger(__name__)
 
 
+def _verify_produced_artifacts(connection: Any, task_id: str) -> None:
+    """Raise RuntimeError if the task declared artifacts it did not produce."""
+    declared = connection.execute(
+        "SELECT artifact_key FROM task_produced_artifacts WHERE task_id = ?",
+        (task_id,),
+    ).fetchall()
+    if not declared:
+        return
+    missing = []
+    for row in declared:
+        found = connection.execute(
+            """SELECT 1 FROM artifacts
+               WHERE produced_by_task_id = ? AND artifact_key = ?
+                 AND status IN ('active', 'approved')
+               LIMIT 1""",
+            (task_id, row["artifact_key"]),
+        ).fetchone()
+        if not found:
+            missing.append(row["artifact_key"])
+    if missing:
+        raise RuntimeError(
+            f"Task {task_id} declared but did not produce artifacts: {missing}"
+        )
+
+
 def _claim_task(connection: Any, worker_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
@@ -110,6 +135,9 @@ def _run_task(
                 )
                 connection.commit()
                 logger.info("Task %s: auto-posted LLM response (%d chars).", task_id, len(content))
+
+        # Verify that all declared artifacts were actually produced
+        _verify_produced_artifacts(connection, task_id)
 
         now = utc_now_iso()
         connection.execute(

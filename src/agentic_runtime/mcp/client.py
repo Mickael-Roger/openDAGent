@@ -85,16 +85,12 @@ class StdioMCPClient:
         result = self._send("tools/list")
         return result.get("tools", []) if result else []
 
-    def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> list[dict[str, Any]]:
+        """Call a tool and return the raw MCP content blocks."""
         result = self._send("tools/call", {"name": name, "arguments": arguments})
         if not result:
-            return ""
-        parts = [
-            block.get("text", "")
-            for block in result.get("content", [])
-            if block.get("type") == "text"
-        ]
-        return "\n".join(parts) if parts else json.dumps(result)
+            return []
+        return result.get("content", [])
 
     def close(self) -> None:
         try:
@@ -140,16 +136,12 @@ class HttpMCPClient:
         result = self._send("tools/list")
         return result.get("tools", []) if result else []
 
-    def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> list[dict[str, Any]]:
+        """Call a tool and return the raw MCP content blocks."""
         result = self._send("tools/call", {"name": name, "arguments": arguments})
         if not result:
-            return ""
-        parts = [
-            block.get("text", "")
-            for block in result.get("content", [])
-            if block.get("type") == "text"
-        ]
-        return "\n".join(parts) if parts else json.dumps(result)
+            return []
+        return result.get("content", [])
 
     def close(self) -> None:
         pass  # stateless HTTP; nothing to tear down
@@ -277,16 +269,12 @@ class StreamableHttpMCPClient:
         result = self._send("tools/list")
         return result.get("tools", []) if result else []
 
-    def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> list[dict[str, Any]]:
+        """Call a tool and return the raw MCP content blocks."""
         result = self._send("tools/call", {"name": name, "arguments": arguments})
         if not result:
-            return ""
-        parts = [
-            block.get("text", "")
-            for block in result.get("content", [])
-            if block.get("type") == "text"
-        ]
-        return "\n".join(parts) if parts else json.dumps(result)
+            return []
+        return result.get("content", [])
 
     def close(self) -> None:
         pass  # stateless; nothing to tear down
