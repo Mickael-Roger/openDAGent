@@ -7,13 +7,13 @@
         <h1>Capabilities</h1>
         <p class="subtitle">Built-in and user-defined execution capabilities. Each capability defines a system prompt, tools, MCP servers, and LLM feature requirements.</p>
     </div>
-    <a href="{{ url_for('capability_new_form') }}" class="btn-primary" style="align-self:center">+ New Capability</a>
+    <a href="{{ url_for('capability_new_form') }}" class="btn-primary">+ New Capability</a>
 </section>
 
 <section class="panel">
     <div class="panel-header">
         <h2>All Capabilities</h2>
-        <span style="color:var(--muted);font-size:0.85rem">{{ capabilities|length }} registered</span>
+        <span style="color:var(--ash);font-size:var(--fs-sm)">{{ capabilities|length }} registered</span>
     </div>
 
     {% if capabilities %}
@@ -28,7 +28,7 @@
                     {% else %}
                     <span class="cap-badge cap-badge-builtin">built-in</span>
                     {% endif %}
-                    <span class="pill pill-{{ 'done' if cap.enabled else 'cancelled' }}" style="font-size:0.68rem;padding:3px 8px">{{ 'enabled' if cap.enabled else 'disabled' }}</span>
+                    <span class="pill pill-{{ 'done' if cap.enabled else 'cancelled' }}">{{ 'enabled' if cap.enabled else 'disabled' }}</span>
                 </div>
                 {% if cap.description %}
                 <p class="cap-desc">{{ cap.description }}</p>
@@ -42,7 +42,7 @@
                 </div>
             </div>
             <div class="cap-row-actions">
-                <a href="{{ url_for('capability_detail', capability_name=cap.name) }}" class="btn-ghost" style="padding:6px 14px;font-size:0.8rem">
+                <a href="{{ url_for('capability_detail', capability_name=cap.name) }}" class="btn-ghost btn-sm">
                     {% if cap.is_user %}Edit{% else %}View{% endif %}
                 </a>
                 {% if cap.is_user %}

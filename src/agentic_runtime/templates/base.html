@@ -4,17 +4,28 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page_title }} | openDAGent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
+    <button class="mobile-nav-toggle" id="nav-toggle" aria-label="Toggle navigation">&#9776;</button>
+    <div class="mobile-nav-backdrop" id="nav-backdrop"></div>
+
     <div class="shell">
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <a class="brand" href="{{ url_for('dashboard') }}">
                 <img src="{{ url_for('static', path='/logo.png') }}" alt="openDAGent" class="brand-logo">
             </a>
+            <span class="sidebar-section-label">Work</span>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('dashboard') }}">Projects</a>
+                <a href="{{ url_for('chat_new') }}">New Chat</a>
+            </nav>
+            <span class="sidebar-section-label">Configuration</span>
+            <nav class="sidebar-nav">
                 <a href="{{ url_for('capabilities_list') }}">Capabilities</a>
                 <a href="{{ url_for('models_page') }}">Models</a>
             </nav>
@@ -24,23 +35,40 @@
         </main>
     </div>
 
-    <!-- Shared artifact viewer modal (used by project_detail and task_detail) -->
+    <!-- Shared artifact viewer modal -->
     <div id="artifact-modal" class="artifact-modal" hidden>
         <div class="artifact-modal-backdrop"></div>
         <div class="artifact-modal-box">
             <div class="artifact-modal-header">
                 <div>
                     <strong id="artifact-modal-key"></strong>
-                    <span id="artifact-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+                    <span id="artifact-modal-meta" style="color:var(--ash);font-size:var(--fs-sm);margin-left:10px"></span>
                 </div>
                 <div style="display:flex;gap:8px">
-                    <a id="artifact-modal-download" class="btn-ghost" style="padding:6px 14px;font-size:0.82rem" download>Download</a>
-                    <button class="btn-ghost" id="artifact-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+                    <a id="artifact-modal-download" class="btn-ghost btn-sm" download>Download</a>
+                    <button class="btn-ghost btn-sm" id="artifact-modal-close">Close</button>
                 </div>
             </div>
             <div id="artifact-modal-body" class="artifact-modal-body"></div>
         </div>
     </div>
     <script src="{{ url_for('static', path='/artifact-viewer.js') }}"></script>
+    <script>
+        // Mobile nav toggle
+        const navToggle = document.getElementById('nav-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('nav-backdrop');
+        function closeMobileNav() {
+            sidebar.classList.remove('open');
+            backdrop.classList.remove('active');
+        }
+        navToggle.addEventListener('click', () => {
+            const isOpen = sidebar.classList.toggle('open');
+            backdrop.classList.toggle('active', isOpen);
+        });
+        backdrop.addEventListener('click', closeMobileNav);
+        // Close sidebar when a nav link is clicked (mobile)
+        sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMobileNav));
+    </script>
 </body>
 </html>

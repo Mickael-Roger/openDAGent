@@ -133,22 +133,22 @@
         </div>
         <div>
             <dt>Tools</dt>
-            <dd>{% if cap.tools %}{% for t in cap.tools %}<span class="cap-tag" style="margin-right:6px">{{ t }}</span>{% endfor %}{% else %}—{% endif %}</dd>
+            <dd>{% if cap.tools %}{% for t in cap.tools %}<span class="cap-tag">{{ t }}</span>{% endfor %}{% else %}—{% endif %}</dd>
         </div>
         <div>
             <dt>MCP Servers</dt>
-            <dd>{% if cap.mcp_servers %}{% for m in cap.mcp_servers %}<span class="cap-tag cap-tag-mcp" style="margin-right:6px">{{ m }}</span>{% endfor %}{% else %}—{% endif %}</dd>
+            <dd>{% if cap.mcp_servers %}{% for m in cap.mcp_servers %}<span class="cap-tag cap-tag-mcp">{{ m }}</span>{% endfor %}{% else %}—{% endif %}</dd>
         </div>
         <div>
             <dt>LLM Features</dt>
-            <dd>{% if cap.llm_features %}{% for f in cap.llm_features %}<span class="cap-tag cap-tag-feature" style="margin-right:6px">{{ f }}</span>{% endfor %}{% else %}—{% endif %}</dd>
+            <dd>{% if cap.llm_features %}{% for f in cap.llm_features %}<span class="cap-tag cap-tag-feature">{{ f }}</span>{% endfor %}{% else %}—{% endif %}</dd>
         </div>
     </dl>
 </section>
 
 <section class="panel">
     <div class="panel-header"><h2>System Prompt</h2></div>
-    <pre class="artifact-code-block" style="margin:0">{{ cap.system_prompt }}</pre>
+    <pre class="artifact-code-block">{{ cap.system_prompt }}</pre>
 </section>
 {% endif %}
 

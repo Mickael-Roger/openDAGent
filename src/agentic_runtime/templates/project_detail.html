@@ -9,8 +9,8 @@
         <h1>{{ project.title }}</h1>
         <p class="subtitle">{{ project.slug }} · Runtime state: <span class="pill pill-{{ project.state }}">{{ project.state }}</span></p>
     </div>
-    <div class="hero-actions" style="display:flex;gap:10px;align-items:center">
-        <a class="btn-primary" href="{{ url_for('project_chat', project_id=project.project_id) }}" style="font-size:0.85rem;padding:9px 18px">Open Chat</a>
+    <div class="hero-actions">
+        <a class="btn-primary" href="{{ url_for('project_chat', project_id=project.project_id) }}">Open Chat</a>
         <a class="btn-ghost" href="{{ url_for('dashboard') }}">Back to projects</a>
         {% if project.state in ('draft', 'activated') %}
         <button class="btn-ghost" id="pause-project-btn" data-action="pause">Pause</button>
@@ -68,9 +68,9 @@
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
                     <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
-                    <button class="btn-ghost artifact-view-btn" style="padding:6px 12px;font-size:0.8rem"
+                    <button class="btn-ghost btn-sm artifact-view-btn"
                             data-artifact-id="{{ artifact.artifact_id }}">View</button>
-                    <a class="btn-ghost" style="padding:6px 12px;font-size:0.8rem"
+                    <a class="btn-ghost btn-sm"
                        href="/api/artifacts/{{ artifact.artifact_id }}/content"
                        download>Download</a>
                 </div>
@@ -94,11 +94,11 @@
         <div class="artifact-modal-header">
             <div>
                 <strong id="trace-modal-title"></strong>
-                <span id="trace-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+                <span id="trace-modal-meta" style="color:var(--ash);font-size:var(--fs-sm);margin-left:10px"></span>
             </div>
-            <button class="btn-ghost" id="trace-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+            <button class="btn-ghost btn-sm" id="trace-modal-close">Close</button>
         </div>
-        <div id="trace-modal-body" class="artifact-modal-body" style="padding:16px;overflow-y:auto;max-height:80vh"></div>
+        <div id="trace-modal-body" class="artifact-modal-body"></div>
     </div>
 </div>
 

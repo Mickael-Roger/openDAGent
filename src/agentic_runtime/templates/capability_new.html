@@ -7,7 +7,7 @@
         <h1>New Capability</h1>
         <p class="subtitle">Define a custom capability with a system prompt, tools, MCP servers, and LLM requirements.</p>
     </div>
-    <a href="{{ url_for('capabilities_list') }}" class="btn-ghost" style="align-self:center">Cancel</a>
+    <a href="{{ url_for('capabilities_list') }}" class="btn-ghost">Cancel</a>
 </section>
 
 <section class="panel">
@@ -16,7 +16,7 @@
 
         <div class="form-grid-2">
             <div class="form-field">
-                <label>Name <span style="color:#ffc4cf">*</span></label>
+                <label>Name <span style="color:var(--red)">*</span></label>
                 <input type="text" name="name" placeholder="my_capability" required
                        pattern="[a-z0-9_]+" title="Lowercase letters, digits, and underscores only">
                 <small class="field-hint">Lowercase, underscores only (e.g. web_researcher)</small>
@@ -50,7 +50,7 @@
         </div>
 
         <div class="form-field">
-            <label>System Prompt <span style="color:#ffc4cf">*</span></label>
+            <label>System Prompt <span style="color:var(--red)">*</span></label>
             <textarea name="system_prompt" rows="10"
                       placeholder="You are an agent that... Describe the role, context, and instructions for the LLM." required></textarea>
         </div>

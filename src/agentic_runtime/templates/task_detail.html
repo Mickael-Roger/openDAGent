@@ -6,13 +6,13 @@
         <p class="eyebrow">Task</p>
         <h1>{{ task.title }}</h1>
         <p class="subtitle">
-            <a href="{{ url_for('project_detail', project_id=task.project_id) }}" style="color:var(--accent)">{{ task.project_title }}</a>
+            <a href="{{ url_for('project_detail', project_id=task.project_id) }}" style="text-decoration:underline">{{ task.project_title }}</a>
             &nbsp;/&nbsp; {{ task.goal_title }}
         </p>
     </div>
-    <div class="hero-actions" style="display:flex;gap:10px;align-items:center">
-        <a class="btn-ghost" href="{{ url_for('project_chat', project_id=task.project_id) }}">Chat</a>
-        <a class="btn-ghost" href="{{ url_for('project_detail', project_id=task.project_id) }}">DAG</a>
+    <div class="hero-actions">
+        <a class="btn-ghost btn-sm" href="{{ url_for('project_chat', project_id=task.project_id) }}">Chat</a>
+        <a class="btn-ghost btn-sm" href="{{ url_for('project_detail', project_id=task.project_id) }}">DAG</a>
         <span class="pill pill-{{ task.state }}">{{ task.state }}</span>
     </div>
 </section>
@@ -68,9 +68,9 @@
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
                     <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
-                    <button class="btn-ghost artifact-view-btn" style="padding:6px 12px;font-size:0.8rem"
+                    <button class="btn-ghost btn-sm artifact-view-btn"
                             data-artifact-id="{{ artifact.artifact_id }}">View</button>
-                    <a class="btn-ghost" style="padding:6px 12px;font-size:0.8rem"
+                    <a class="btn-ghost btn-sm"
                        href="/api/artifacts/{{ artifact.artifact_id }}/content"
                        download>Download</a>
                 </div>
@@ -170,11 +170,11 @@
         <div class="artifact-modal-header">
             <div>
                 <strong id="trace-modal-title"></strong>
-                <span id="trace-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+                <span id="trace-modal-meta" style="color:var(--ash);font-size:var(--fs-sm);margin-left:10px"></span>
             </div>
-            <button class="btn-ghost" id="trace-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+            <button class="btn-ghost btn-sm" id="trace-modal-close">Close</button>
         </div>
-        <div id="trace-modal-body" class="artifact-modal-body" style="padding:16px;overflow-y:auto;max-height:80vh"></div>
+        <div id="trace-modal-body" class="artifact-modal-body"></div>
     </div>
 </div>
 

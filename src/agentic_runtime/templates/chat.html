@@ -8,7 +8,7 @@
 {% block content %}
 <section class="hero">
     <div>
-        <p class="eyebrow">Project &middot; <span class="pill pill-{{ project.state }}" style="font-size:0.68rem;padding:3px 8px">{{ project.state }}</span></p>
+        <p class="eyebrow">Project &middot; <span class="pill pill-{{ project.state }}">{{ project.state }}</span></p>
         <h1>{{ project.title }}</h1>
         {% if project.description %}<p class="subtitle">{{ project.description }}</p>{% endif %}
     </div>
@@ -22,11 +22,11 @@
         <div class="artifact-modal-header">
             <div>
                 <strong id="artifact-modal-key"></strong>
-                <span id="artifact-modal-meta" style="color:var(--muted);font-size:0.82rem;margin-left:10px"></span>
+                <span id="artifact-modal-meta" style="color:var(--ash);font-size:var(--fs-sm);margin-left:10px"></span>
             </div>
             <div style="display:flex;gap:8px">
-                <a id="artifact-modal-download" class="btn-ghost" style="padding:6px 14px;font-size:0.82rem" download>Download</a>
-                <button class="btn-ghost" id="artifact-modal-close" style="padding:6px 14px;font-size:0.82rem">Close</button>
+                <a id="artifact-modal-download" class="btn-ghost btn-sm" download>Download</a>
+                <button class="btn-ghost btn-sm" id="artifact-modal-close">Close</button>
             </div>
         </div>
         <div id="artifact-modal-body" class="artifact-modal-body"></div>
@@ -224,7 +224,7 @@
         // Placeholder while loading
         const card = document.createElement('div');
         card.className = 'chat-artifact-card';
-        card.innerHTML = '<span style="color:var(--muted);font-size:0.82rem">Loading artifact…</span>';
+        card.innerHTML = '<span style="color:var(--ash);font-size:var(--fs-sm)">Loading artifact...</span>';
         container.appendChild(card);
 
         let meta;
@@ -233,7 +233,7 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             meta = await res.json();
         } catch (e) {
-            card.innerHTML = `<span style="color:#ffc4cf;font-size:0.82rem">Artifact unavailable</span>`;
+            card.innerHTML = '<span style="color:var(--red-text);font-size:var(--fs-sm)">Artifact unavailable</span>';
             return;
         }
 
@@ -258,16 +258,15 @@
             // Text or download — show compact card with actions
             card.innerHTML = '';
             const info = document.createElement('div');
-            info.innerHTML = `<strong style="font-size:0.88rem">${meta.artifact_key}</strong>
-                <span style="color:var(--muted);font-size:0.78rem;margin-left:8px">${meta.type} · v${meta.version} · ${meta.status}</span>`;
+            info.innerHTML = `<strong>${meta.artifact_key}</strong>
+                <span style="color:var(--ash);font-size:var(--fs-xs);margin-left:8px">${meta.type} \u00B7 v${meta.version} \u00B7 ${meta.status}</span>`;
 
             const actions = document.createElement('div');
             actions.style.cssText = 'display:flex;gap:8px;margin-top:8px';
 
             if (isText) {
                 const viewBtn = document.createElement('button');
-                viewBtn.className = 'btn-ghost';
-                viewBtn.style.cssText = 'padding:5px 12px;font-size:0.78rem';
+                viewBtn.className = 'btn-ghost btn-sm';
                 viewBtn.textContent = 'View';
                 viewBtn.addEventListener('click', () => openArtifactModal(artifactId));
                 actions.appendChild(viewBtn);
@@ -276,8 +275,7 @@
             const dlLink = document.createElement('a');
             dlLink.href     = contentUrl;
             dlLink.download = meta.file_name || meta.artifact_key;
-            dlLink.className = 'btn-ghost';
-            dlLink.style.cssText = 'padding:5px 12px;font-size:0.78rem';
+            dlLink.className = 'btn-ghost btn-sm';
             dlLink.textContent = 'Download';
             actions.appendChild(dlLink);
 

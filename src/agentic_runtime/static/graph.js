@@ -111,7 +111,7 @@ function renderGraph(graph) {
     .attr("orient",       "auto")
     .append("path")
       .attr("d",    "M 0 0 L 8 4 L 0 8 Z")
-      .attr("fill", "rgba(155,176,209,0.55)");
+      .attr("fill", "rgba(100,116,139,0.6)");
 
   var glowF = defs.append("filter").attr("id", "dag-glow").attr("x", "-30%").attr("y", "-30%").attr("width", "160%").attr("height", "160%");
   glowF.append("feGaussianBlur").attr("in", "SourceAlpha").attr("stdDeviation", "5").attr("result", "blur");
@@ -134,20 +134,20 @@ function renderGraph(graph) {
   var initTy    = (cH - totalH * initScale) / 2;
   svg.call(zoom.transform, d3.zoomIdentity.translate(initTx, initTy).scale(initScale));
 
-  // ── State colour palette ──────────────────────────────────────────────────
+  // ── State colour palette (warm / light theme) ─────────────────────────────
   var COLORS = {
-    done:     { bg: "#071e18", stroke: "#45d0b8", text: "#9ff5e4", glow: false },
-    running:  { bg: "#0c1a36", stroke: "#7c9cff", text: "#c9d6ff", glow: true  },
-    claimed:  { bg: "#0a1530", stroke: "#5a7adf", text: "#b8c8f8", glow: false },
-    queued:   { bg: "#0a1228", stroke: "#3d5496", text: "#9bb0d1", glow: false },
-    created:  { bg: "#090f1e", stroke: "#2e4060", text: "#7a92b4", glow: false },
-    failed:   { bg: "#260812", stroke: "#ff5c7b", text: "#ffc4cf", glow: false },
-    cancelled:{ bg: "#1c0810", stroke: "#c03a5a", text: "#f09ab0", glow: false },
-    blocked:  { bg: "#1e1500", stroke: "#ffc45c", text: "#ffe5b8", glow: false },
-    paused_manual:                    { bg: "#191200", stroke: "#d4a040", text: "#f0d090", glow: false },
-    paused_pending_change_review:     { bg: "#191200", stroke: "#d4a040", text: "#f0d090", glow: false },
+    done:     { bg: "#f0fdf4", stroke: "#22c55e", text: "#166534", glow: false },
+    running:  { bg: "#eff6ff", stroke: "#3b82f6", text: "#1e40af", glow: true  },
+    claimed:  { bg: "#eff6ff", stroke: "#60a5fa", text: "#1e40af", glow: false },
+    queued:   { bg: "#f5f3f0", stroke: "#94a3b8", text: "#475569", glow: false },
+    created:  { bg: "#f5f3f0", stroke: "#cbd5e1", text: "#64748b", glow: false },
+    failed:   { bg: "#fef2f2", stroke: "#ef4444", text: "#991b1b", glow: false },
+    cancelled:{ bg: "#fef2f2", stroke: "#dc2626", text: "#991b1b", glow: false },
+    blocked:  { bg: "#fffbeb", stroke: "#f59e0b", text: "#92400e", glow: false },
+    paused_manual:                    { bg: "#fffbeb", stroke: "#d97706", text: "#92400e", glow: false },
+    paused_pending_change_review:     { bg: "#fffbeb", stroke: "#d97706", text: "#92400e", glow: false },
   };
-  var DC = { bg: "#090f1e", stroke: "#2e4060", text: "#7a92b4", glow: false };
+  var DC = { bg: "#f5f3f0", stroke: "#cbd5e1", text: "#64748b", glow: false };
 
   function col(state) { return COLORS[state] || DC; }
 
@@ -179,7 +179,7 @@ function renderGraph(graph) {
     edgesG.append("path")
       .attr("d",           pathD)
       .attr("fill",        "none")
-      .attr("stroke",      "rgba(155,176,209,0.30)")
+      .attr("stroke",      "rgba(100,116,139,0.30)")
       .attr("stroke-width", 1.6)
       .attr("marker-end",  "url(#dag-arrow)");
 
@@ -196,14 +196,14 @@ function renderGraph(graph) {
         .attr("x",      lx - lw2 / 2).attr("y",      ly - 11)
         .attr("width",  lw2)          .attr("height", 13)
         .attr("rx",     4)
-        .attr("fill",   "rgba(9,17,31,0.80)")
-        .attr("stroke", "rgba(155,176,209,0.15)")
+        .attr("fill",   "rgba(245,243,240,0.92)")
+        .attr("stroke", "rgba(100,116,139,0.20)")
         .attr("stroke-width", 0.5);
       lblGrp.append("text")
         .attr("x",                  lx).attr("y", ly - 4)
         .attr("text-anchor",        "middle")
         .attr("dominant-baseline",  "middle")
-        .attr("fill",               "rgba(155,176,209,0.70)")
+        .attr("fill",               "rgba(100,116,139,0.70)")
         .attr("font-size",          "9px")
         .attr("font-family",        "Inter, ui-sans-serif, sans-serif")
         .text(ldisp);
@@ -243,7 +243,7 @@ function renderGraph(graph) {
       .attr("x", rx + 3).attr("y", ry + 5)
       .attr("width", NW).attr("height", NH)
       .attr("rx", 14)
-      .attr("fill", "rgba(0,0,0,0.40)");
+      .attr("fill", "rgba(0,0,0,0.06)");
 
     // Card background
     ng.append("rect")
