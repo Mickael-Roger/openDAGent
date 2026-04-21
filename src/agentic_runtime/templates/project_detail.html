@@ -66,7 +66,7 @@
                     <strong>{{ artifact.artifact_key }}</strong>
                     <p>{{ artifact.type }} · v{{ artifact.version }}</p>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+                <div class="artifact-actions">
                     <span class="pill pill-{{ artifact.status }}">{{ artifact.status }}</span>
                     <button class="btn-ghost btn-sm artifact-view-btn"
                             data-artifact-id="{{ artifact.artifact_id }}">View</button>
@@ -90,11 +90,11 @@
 <!-- Trace detail modal -->
 <div id="trace-modal" class="artifact-modal" hidden>
     <div class="artifact-modal-backdrop"></div>
-    <div class="artifact-modal-box" style="max-width:1100px">
+    <div class="artifact-modal-box trace-modal-box">
         <div class="artifact-modal-header">
             <div>
                 <strong id="trace-modal-title"></strong>
-                <span id="trace-modal-meta" style="color:var(--ash);font-size:var(--fs-sm);margin-left:10px"></span>
+                <span id="trace-modal-meta" class="trace-modal-meta"></span>
             </div>
             <button class="btn-ghost btn-sm" id="trace-modal-close">Close</button>
         </div>
@@ -152,7 +152,7 @@
                 container.innerHTML = '<p class="empty-copy">No execution traces recorded yet.</p>';
                 return;
             }
-            let html = '<table class="detail-table"><thead><tr>' +
+            let html = '<div class="table-scroll"><table class="detail-table"><thead><tr>' +
                 '<th>Task</th><th>Capability</th><th>Status</th><th>Started</th><th>Duration</th><th></th>' +
                 '</tr></thead><tbody>';
             for (const t of traces) {
@@ -172,7 +172,7 @@
                                 data-trace-id="${t.trace_id}">View spans</button></td>
                 </tr>`;
             }
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             container.innerHTML = html;
 
             container.querySelectorAll('.trace-view-btn').forEach(btn => {

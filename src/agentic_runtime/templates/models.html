@@ -13,20 +13,20 @@
 {% for provider in providers %}
 <section class="panel">
     <div class="panel-header">
-        <div style="display:flex;align-items:center;gap:12px">
+        <div class="panel-header-title">
             <h2>{{ provider.id }}</h2>
             <span class="cap-badge cap-badge-builtin">{{ provider.type }}</span>
             {% if default_provider == provider.id %}
-            <span class="cap-badge" style="background:rgba(99,102,241,.18);color:#a5b4fc">default</span>
+            <span class="cap-badge cap-badge-default">default</span>
             {% endif %}
         </div>
-        <span style="color:var(--ash);font-family:var(--font-mono);font-size:var(--fs-xs)">{{ provider.endpoint }}</span>
+        <span class="panel-header-subtitle">{{ provider.endpoint }}</span>
     </div>
 
     {% if provider.models %}
     <div class="cap-list">
         {% for m in provider.models %}
-        <div class="cap-row" style="flex-direction:column;align-items:stretch">
+        <div class="cap-row cap-row-stacked">
 
             <div class="cap-row-main">
                 <div class="cap-row-title">

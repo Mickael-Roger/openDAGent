@@ -20,11 +20,11 @@
     <div class="artifact-modal-backdrop"></div>
     <div class="artifact-modal-box">
         <div class="artifact-modal-header">
-            <div>
+            <div class="artifact-modal-header-info">
                 <strong id="artifact-modal-key"></strong>
-                <span id="artifact-modal-meta" style="color:var(--ash);font-size:var(--fs-sm);margin-left:10px"></span>
+                <span id="artifact-modal-meta" class="artifact-modal-meta"></span>
             </div>
-            <div style="display:flex;gap:8px">
+            <div class="artifact-modal-actions">
                 <a id="artifact-modal-download" class="btn-ghost btn-sm" download>Download</a>
                 <button class="btn-ghost btn-sm" id="artifact-modal-close">Close</button>
             </div>
@@ -260,7 +260,7 @@
 
         // Action buttons — always present for every artifact type
         const actions = document.createElement('div');
-        actions.style.cssText = 'display:flex;gap:8px;margin-top:8px';
+        actions.className = 'artifact-actions';
 
         const viewBtn = document.createElement('button');
         viewBtn.className = 'btn-ghost btn-sm';

@@ -10,7 +10,7 @@
         <h1>{{ cap.name }}</h1>
         {% if cap.description %}<p class="subtitle">{{ cap.description }}</p>{% endif %}
     </div>
-    <div style="display:flex;gap:10px;align-items:center">
+    <div class="hero-actions">
         <a href="{{ url_for('capabilities_list') }}" class="btn-ghost">Back</a>
         {% if cap.is_user %}
         <button class="btn-danger" id="delete-cap-btn">Delete</button>
@@ -108,7 +108,7 @@
             </div>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px">
+        <div class="form-actions">
             <button type="submit" class="btn-primary">Save Changes</button>
         </div>
     </form>
