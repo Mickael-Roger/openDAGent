@@ -13,6 +13,70 @@ from .time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
+_SUPERVISOR_SKIP = frozenset({"dag_supervisor", "chat_response", "plan_project"})
+
+
+def _maybe_create_supervisor_review(connection: Any, task: dict[str, Any]) -> None:
+    """Create a dag_supervisor task if conditions are met after a work task finishes."""
+    cap_name = task.get("capability_name", "")
+    goal_id = task.get("goal_id")
+
+    # Skip if the completed task is itself a supervisor, chat, or planner
+    if cap_name in _SUPERVISOR_SKIP or not goal_id:
+        return
+
+    # Check the goal is still active
+    goal = connection.execute(
+        "SELECT state FROM goals WHERE goal_id = ?", (goal_id,)
+    ).fetchone()
+    if not goal or goal["state"] != "active":
+        return
+
+    # Check no supervisor task already pending/running/claimed for this goal
+    existing = connection.execute(
+        """SELECT 1 FROM tasks
+           WHERE goal_id = ? AND capability_name = 'dag_supervisor'
+             AND state IN ('created', 'queued', 'claimed', 'running')
+           LIMIT 1""",
+        (goal_id,),
+    ).fetchone()
+    if existing:
+        return
+
+    # Check the dag_supervisor capability is registered
+    from .capabilities import get_executor
+    if get_executor("dag_supervisor", connection) is None:
+        return
+
+    # Check at least one non-planner project task has completed
+    has_completed = connection.execute(
+        """SELECT 1 FROM tasks
+           WHERE goal_id = ? AND capability_name NOT IN ('plan_project', 'chat_response', 'dag_supervisor')
+             AND state IN ('done', 'failed')
+           LIMIT 1""",
+        (goal_id,),
+    ).fetchone()
+    if not has_completed:
+        return
+
+    # Create the supervisor task
+    task_id = new_id("tsk")
+    now = utc_now_iso()
+    trigger_state = "done" if task.get("state_after") != "failed" else "failed"
+    description = (
+        f"Triggered by: task '{task.get('title', task['task_id'])}' completed ({trigger_state}). "
+        "Review DAG progress and decide if adaptations are needed."
+    )
+    connection.execute(
+        """INSERT INTO tasks
+              (task_id, goal_id, project_id, capability_name, title, description,
+               priority, state, task_kind, created_at, updated_at)
+           VALUES (?, ?, ?, 'dag_supervisor', 'DAG Review', ?, 90, 'queued', 'internal', ?, ?)""",
+        (task_id, goal_id, task["project_id"], description, now, now),
+    )
+    connection.commit()
+    logger.info("Created supervisor review %s for goal %s.", task_id, goal_id)
+
 
 def _verify_produced_artifacts(connection: Any, task_id: str) -> None:
     """Raise RuntimeError if the task declared artifacts it did not produce."""
@@ -163,6 +227,12 @@ def _run_task(
         except Exception:
             logger.debug("queue_ready_tasks after completion failed (will retry via ingress).", exc_info=True)
 
+        # Trigger supervisor review if applicable
+        try:
+            _maybe_create_supervisor_review(connection, task)
+        except Exception:
+            logger.debug("Supervisor review creation failed (non-critical).", exc_info=True)
+
     except TaskBlocked as exc:
         now = utc_now_iso()
         connection.execute(
@@ -200,6 +270,13 @@ def _run_task(
             (now, type(exc).__name__, str(exc)[:2000], attempt_id),
         )
         connection.commit()
+
+        # Trigger supervisor review on failure too
+        try:
+            task["state_after"] = "failed"
+            _maybe_create_supervisor_review(connection, task)
+        except Exception:
+            logger.debug("Supervisor review creation failed (non-critical).", exc_info=True)
 
 
 def recover_interrupted_tasks(connection: Any) -> None:

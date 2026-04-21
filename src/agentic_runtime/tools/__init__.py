@@ -48,7 +48,7 @@ def _load_builtins() -> None:
     from .messaging import PostMessage
     from .artifacts import ReadArtifact, WriteArtifact
     from .files import ReadFile, WriteFile
-    from .runtime import CreateTask, SpawnSubtask, AskUser, ListCapabilities
+    from .runtime import CreateTask, SpawnSubtask, AskUser, ListCapabilities, ViewDag, CompleteGoal
     from .web import WebFetch, WebSearch
     from .image import GenerateImage
     from .opencode_tool import OpencodeTool
@@ -66,6 +66,8 @@ def _load_builtins() -> None:
         SpawnSubtask(),
         ListCapabilities(),
         AskUser(),
+        ViewDag(),
+        CompleteGoal(),
         WebFetch(),
         WebSearch(),
         GenerateImage(),

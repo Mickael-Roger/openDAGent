@@ -11,6 +11,7 @@ tools:
   - list_capabilities
   - create_task
   - post_message
+  - view_dag
 mcp_servers: []
 system_prompt: |
   You are openDAGent's planner. Your job is to turn a project goal and its discussion
