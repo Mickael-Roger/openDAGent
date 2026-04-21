@@ -241,47 +241,41 @@
         const isText     = meta.preview_kind === 'text';
         const contentUrl = `/api/artifacts/${artifactId}/content`;
 
-        if (isImage) {
-            card.innerHTML = '';
-            const label = document.createElement('span');
-            label.className = 'chat-artifact-label';
-            label.textContent = `${meta.artifact_key} · v${meta.version}`;
-            card.appendChild(label);
+        card.innerHTML = '';
 
+        // Header: key + meta info
+        const info = document.createElement('div');
+        info.innerHTML = `<strong>${meta.artifact_key}</strong>
+            <span style="color:var(--ash);font-size:var(--fs-xs);margin-left:8px">${meta.type} \u00B7 v${meta.version} \u00B7 ${meta.status}</span>`;
+        card.appendChild(info);
+
+        // Image preview (if applicable)
+        if (isImage) {
             const img = document.createElement('img');
             img.src   = contentUrl;
             img.alt   = meta.artifact_key;
             img.className = 'chat-artifact-image';
             card.appendChild(img);
-
-        } else {
-            // Text or download — show compact card with actions
-            card.innerHTML = '';
-            const info = document.createElement('div');
-            info.innerHTML = `<strong>${meta.artifact_key}</strong>
-                <span style="color:var(--ash);font-size:var(--fs-xs);margin-left:8px">${meta.type} \u00B7 v${meta.version} \u00B7 ${meta.status}</span>`;
-
-            const actions = document.createElement('div');
-            actions.style.cssText = 'display:flex;gap:8px;margin-top:8px';
-
-            if (isText) {
-                const viewBtn = document.createElement('button');
-                viewBtn.className = 'btn-ghost btn-sm';
-                viewBtn.textContent = 'View';
-                viewBtn.addEventListener('click', () => openArtifactModal(artifactId));
-                actions.appendChild(viewBtn);
-            }
-
-            const dlLink = document.createElement('a');
-            dlLink.href     = contentUrl;
-            dlLink.download = meta.file_name || meta.artifact_key;
-            dlLink.className = 'btn-ghost btn-sm';
-            dlLink.textContent = 'Download';
-            actions.appendChild(dlLink);
-
-            card.appendChild(info);
-            card.appendChild(actions);
         }
+
+        // Action buttons — always present for every artifact type
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:8px;margin-top:8px';
+
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn-ghost btn-sm';
+        viewBtn.textContent = 'View';
+        viewBtn.addEventListener('click', () => openArtifactModal(artifactId));
+        actions.appendChild(viewBtn);
+
+        const dlLink = document.createElement('a');
+        dlLink.href     = contentUrl;
+        dlLink.download = meta.file_name || meta.artifact_key;
+        dlLink.className = 'btn-ghost btn-sm';
+        dlLink.textContent = 'Download';
+        actions.appendChild(dlLink);
+
+        card.appendChild(actions);
     }
 </script>
 {% endblock %}
